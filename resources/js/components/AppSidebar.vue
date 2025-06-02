@@ -5,79 +5,38 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Database, Package, Tags, Users } from 'lucide-vue-next';
+import { User, Table, LayoutGrid, Package, Tags, Users } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { usePage } from '@inertiajs/vue3';
 const page = usePage();
 const user = usePage().props.user as { role: string };
 let mainNavItems: NavItem[] = [];
 
-if (user.role === 'kasir') {
-    mainNavItems = [
-        {
-            title: 'Dashboard',
-            href: '/dashboard',
-            icon: LayoutGrid,
-        },
+const navConfig: Record<string, NavItem[]> = {
+    kasir: [
+        { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Kasir', href: '/kasir', icon: Users },
+    ],
+    pramuniaga: [
+        { title: 'Pramuniaga', href: '/pramuniaga', icon: Users },
+        { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+    ],
+    admin: [
+        { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
+        { title: 'Data Produk', href: '/produk', icon: Package },
+        { title: 'Data Kategori', href: '/kategori', icon: Tags },
+        { title: 'Data Merek', href: '/merek', icon: Tags },
+        { title: 'Data Pelanggan', href: '/pelanggan', icon: User },
+        { title: 'Data Transaksi', href: '/datatransaksi', icon: Table },
+        { title: 'Data User', href: '/user', icon: Users },
+    ],
+};
 
-        {
-            title: 'Kasir',
-            href: '/kasir',
-            icon: Users,
-        },
+mainNavItems = navConfig[user.role] || [];
 
-    ];
-} else {
-    mainNavItems = [
-        {
-            title: 'Dashboard',
-            href: '/dashboard',
-            icon: LayoutGrid,
-        },
-        {
-            title: 'Data Produk',
-            href: '/produk',
-            icon: Package,
-        },
-        {
-            title: 'Data Kategori',
-            href: '/kategori',
-            icon: Tags,
-        },
-        {
-            title: 'Data Merek',
-            href: '/merek',
-            icon: Tags,
-        },
-        {
-            title: 'Data Pelanggan',
-            href: '/pelanggan',
-            icon: Users,
-        },
-        {
-            title: 'Data Transaksi',
-            href: '/datatransaksi',
-            icon: Users,
-        },
-        {
-            title: 'Data User',
-            href: '/user',
-            icon: Users,
-        },
-    ];
-}
 
 const footerNavItems: NavItem[] = [
-    {
-        title: 'Github Repo',
-        href: 'https://github.com/laravel/vue-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
-        icon: BookOpen,
-    },
+
 ];
 </script>
 

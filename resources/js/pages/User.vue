@@ -393,7 +393,7 @@ onMounted(fetchUsers);
                                         </TableCell>
                                         <TableCell>
                                             <Badge
-                                                :variant="item.role === 'admin' ? 'default' : item.role === 'editor' ? 'secondary' : 'outline'">
+                                                :variant="item.role === 'admin' ? 'default' : item.role === 'admin' ? 'secondary' : 'outline'">
                                                 {{ item.role }}
                                             </Badge>
                                         </TableCell>

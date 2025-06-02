@@ -51,6 +51,8 @@ const page = usePage<PageProps>()
             class="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800 transition">
           Register
           </Link>
+
+     
         </template>
       </nav>
     </header>
@@ -58,6 +60,7 @@ const page = usePage<PageProps>()
     <!-- Content -->
     <main class="flex-grow flex items-center justify-center px-6 py-12 lg:py-24 relative z-10">
       <div class="text-center max-w-2xl bg-white/70 dark:bg-black/60 backdrop-blur-sm p-8 rounded-xl shadow-lg">
+        
         <h2 class="text-2xl lg:text-4xl font-bold mb-4">Selamat Datang di Sistem Penjualan</h2>
         <Link :href="page.props.auth.user ? route('dashboard') : route('login')"
           class="inline-block bg-gray-600 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition">

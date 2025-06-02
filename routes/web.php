@@ -7,48 +7,61 @@ use App\Http\Controllers\Api\TransaksiController;
 use App\Http\Controllers\API\PelangganController;
 use App\Http\Controllers\API\UserController;
 use Illuminate\Support\Facades\Route;
-
-
 use Inertia\Inertia;
 
-
-
+// Homepage untuk semua pengguna
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
-Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->name('dashboard');
-Route::get('kasir', function () {
-    return Inertia::render('Kasir');
-})->name('Kasir');
-Route::get('produk', function () {
-    return Inertia::render('Produk');
-})->name('Produk');
-Route::get('kategori', function () {
-    return Inertia::render('Kategori');
-})->name('Kategori');
-Route::get('merek', function () {
-    return Inertia::render('Merek');
-})->name('Merek');
-Route::get('pelanggan', function () {
-    return Inertia::render('Pelanggan');
-})->name('Pelanggan');
-Route::get('datatransaksi', function () {
-    return Inertia::render('DataTransaksi');
-})->name('DataTransaksi');
-Route::get('user', function () {
-    return Inertia::render('User');
-})->name('DataUser');
 
+// Grup untuk user yang sudah login dan terverifikasi
+Route::middleware(['auth', 'verified'])->group(function () {
+    // Dashboard - dapat diakses semua role (admin, kasir, dll)
+    Route::get('dashboard', function () {
+        return Inertia::render('Dashboard');
+    })->name('dashboard');
 
+    // Kasir - dapat diakses admin dan kasir
+    Route::get('kasir', function () {
+        return Inertia::render('Kasir');
+    })->name('Kasir')->middleware('role:kasir');
 
+        Route::get('pramuniaga', function () {
+        return Inertia::render('Pramuniaga');
+    })->name('Pramuniaga')->middleware('role:pramuniaga');
 
+    // Grup route yang hanya untuk admin
+    Route::middleware('role:admin')->group(function () {
+        Route::get('produk', function () {
+            return Inertia::render('Produk');
+        })->name('Produk');
+
+        Route::get('kategori', function () {
+            return Inertia::render('Kategori');
+        })->name('Kategori');
+
+        Route::get('merek', function () {
+            return Inertia::render('Merek');
+        })->name('Merek');
+
+        Route::get('pelanggan', function () {
+            return Inertia::render('Pelanggan');
+        })->name('Pelanggan');
+
+        Route::get('datatransaksi', function () {
+            return Inertia::render('DataTransaksi');
+        })->name('DataTransaksi');
+
+        Route::get('user', function () {
+            return Inertia::render('User');
+        })->name('DataUser');
+    });
+});
 
 require __DIR__ . '/settings.php';
 require __DIR__ . '/auth.php';
 
-
+// API Routes (tetap sama)
 Route::get('api/produk', [ProdukController::class, 'index']);
 Route::post('api/produk', [ProdukController::class, 'store']);
 Route::put('api/produk/{produk}', [ProdukController::class, 'update']);
