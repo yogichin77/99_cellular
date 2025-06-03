@@ -32,8 +32,8 @@ class PramuniagaController extends Controller
     {
         $validated = $request->validate([
             'nama_produk' => 'required|string|max:255',
-            'id' => 'required|exists:kategoris,id',
-            'id' => 'required|exists:mereks,id',
+            'id_kategori' => 'required|exists:kategoris,id',
+            'id_merek' => 'required|exists:mereks,id',
             'harga_modal' => 'required|numeric|min:0',
             'harga_jual' => 'required|numeric|min:0',
             'jumlah_stok' => 'required|integer|min:0',
