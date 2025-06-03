@@ -12,20 +12,15 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('transaksis', function (Blueprint $table) {
-            $table->id('id');
+            $table->id();
             $table->integer('sub_total_harga');
             $table->integer('total_bayar');
             $table->integer('total_kurang');
             $table->enum('status_pembayaran', ['cash', 'kredit']);
             $table->date('jatuh_tempo')->nullable();
             $table->integer('diskon')->default(0);
-            $table->unsignedBigInteger('id_pelanggan')->nullable();
-            $table->foreign('id_pelanggan')
-                ->references('id_pelanggan')
-                ->on('pelanggans')
-                ->onDelete('set null');
+            $table->foreignId('id_pelanggan')->constrained('pelanggans')->nullable()->onDelete('cascade');
             $table->foreignId('id_user')->constrained('users');
-
             $table->timestamps();
         });
     }

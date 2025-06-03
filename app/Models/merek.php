@@ -11,7 +11,6 @@ class Merek extends Model
     use HasFactory;
 
     protected $table = 'mereks';
-    protected $primaryKey = 'id_merek';
     public $timestamps = true;
 
     protected $fillable = [

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -9,19 +8,11 @@ class Produk extends Model
 {
     use HasFactory;
 
-    // Tulis primary key sesuai migrasi kamu
-    protected $primaryKey = 'id_produk';
     protected $table = 'produks';
-
-    // Jika primary key bukan auto increment integer biasa, set juga ini:
-    // protected $keyType = 'int'; // Default sudah int, cukup kalau kamu pakai string ganti ini
-
-    // Kalau kamu pakai auto increment, pastikan:
-    public $incrementing = true;
 
     protected $fillable = [
         'nama_produk',
-        'id_kategori',
+        'id_kategori', 
         'id_merek',
         'harga_modal',
         'harga_jual',
@@ -41,8 +32,7 @@ class Produk extends Model
         return $this->belongsTo(Merek::class, 'id_merek');
     }
 
-    // app/Models/Produk.php
-
+    // Relasi ke detail transaksi
     public function detailTransaksis()
     {
         return $this->hasMany(DetailTransaksi::class, 'id_produk');

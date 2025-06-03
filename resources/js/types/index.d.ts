@@ -39,7 +39,6 @@ export interface User {
 export type BreadcrumbItemType = BreadcrumbItem;
 
 
-// src/types/TransaksiResponse.ts
 export interface TransaksiResponse {
   id: number;
   sub_total_harga: number;
@@ -55,7 +54,7 @@ export interface TransaksiResponse {
     name: string;
   };
   pelanggan?: {
-    id_pelanggan: number;
+    id: number;
     nama_pelanggan: string;
     nama_toko: string;
   };
@@ -65,7 +64,7 @@ export interface TransaksiResponse {
     harga_satuan: number;
     total_harga: number;
     produk: {
-      id_produk: number;
+      id: number;
       nama_produk: string;
     };
   }>;

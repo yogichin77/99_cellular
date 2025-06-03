@@ -44,7 +44,7 @@ class KategoriController extends Controller
 
     public function show(string $id)
     {
-        $kategori = Kategori::where('id_kategori', $id)->first();
+        $kategori = Kategori::find($id);
 
         if (!$kategori) {
             return response()->json([
@@ -62,7 +62,7 @@ class KategoriController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $kategori = Kategori::where('id_kategori', $id)->first();
+        $kategori = Kategori::find($id);
 
         if (!$kategori) {
             return response()->json([
@@ -72,7 +72,7 @@ class KategoriController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'nama_kategori' => 'required|string|max:255|unique:kategoris,nama_kategori,' . $id . ',id_kategori',
+            'nama_kategori' => 'required|string|max:255|unique:kategoris,nama_kategori,' . $id,
         ]);
 
         if ($validator->fails()) {
@@ -94,7 +94,7 @@ class KategoriController extends Controller
 
     public function destroy(string $id)
     {
-        $kategori = Kategori::where('id_kategori', $id)->first();
+        $kategori = Kategori::find($id);
 
         if (!$kategori) {
             return response()->json([

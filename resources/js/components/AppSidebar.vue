@@ -8,7 +8,7 @@ import { Link } from '@inertiajs/vue3';
 import { User, Table, LayoutGrid, Package, Tags, Users } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 import { usePage } from '@inertiajs/vue3';
-const page = usePage();
+
 const user = usePage().props.user as { role: string };
 let mainNavItems: NavItem[] = [];
 

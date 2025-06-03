@@ -23,7 +23,10 @@ class PelangganController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'nama_pelanggan' => 'required|string|max:255|unique:transaksis,nama_pelanggan',
+            'nama_pelanggan' => 'required|string|max:255',
+            'no_handphone' => 'required|string|max:20',
+            'alamat' => 'required|string|max:255',
+            'nama_toko' => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -34,18 +37,18 @@ class PelangganController extends Controller
             ], 422);
         }
 
-        $merek = Pelanggan::create($request->all());
+        $pelanggan = Pelanggan::create($request->all());
 
         return response()->json([
             'success' => true,
             'message' => 'Pelanggan berhasil ditambahkan',
-            'data' => $merek
+            'data' => $pelanggan
         ], 201);
     }
 
     public function show(string $id)
     {
-        $pelanggan = Pelanggan::where('id_pelanggan', $id)->first();
+        $pelanggan = Pelanggan::find($id);
 
         if (!$pelanggan) {
             return response()->json([
@@ -63,7 +66,7 @@ class PelangganController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $pelanggan = Pelanggan::where('id_pelanggan', $id)->first();
+        $pelanggan = Pelanggan::find($id)->first();
 
         if (!$pelanggan) {
             return response()->json([
@@ -95,7 +98,7 @@ class PelangganController extends Controller
 
     public function destroy(string $id)
     {
-        $pelanggan = Pelanggan::where('id_pelanggan', $id)->first();
+        $pelanggan = Pelanggan::find( $id)->first();
 
         if (!$pelanggan) {
             return response()->json([

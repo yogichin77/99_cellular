@@ -2,15 +2,15 @@
 
 import { type BreadcrumbItem } from '@/types';
 import axios from 'axios';
-import { computed, onMounted, ref } from 'vue';
 import { Search } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
 
 // Shadcn UI Components
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Pramuniaga', href: '/pramuniaga' }];
 
@@ -122,7 +122,7 @@ onMounted(fetchproduk);
                                     </TableRow>
                                 </template>
                                 <template v-else>
-                                    <TableRow v-for="item in filteredProduk" :key="item.id_produk"
+                                    <TableRow v-for="item in filteredProduk" :key="item.id"
                                         class="group hover:bg-muted/50 transition-colors">
                                         <TableCell>
                                             <img :src="item.gambar_produk ? `/storage/${item.gambar_produk}` : '/placeholder-product.jpg'"

@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/vue3';
+import { Head ,usePage} from '@inertiajs/vue3';
 import axios from 'axios';
 import { Minus, Plus, Search, Trash2 } from 'lucide-vue-next'; // Import Plus and Minus icons
 import Swal from 'sweetalert2';
@@ -26,7 +26,8 @@ import { computed, onMounted, ref, watch } from 'vue';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Data Transaksi', href: '/datatransaksi' }];
 
 // Reactive state variables
-const transactions = ref<TransaksiResponse[]>([]);
+
+const transaksis = ref<TransaksiResponse[]>([]);
 const isLoading = ref(false);
 const searchTerm = ref('');
 const statusFilter = ref<string>('all');
@@ -39,26 +40,26 @@ const sortConfig = ref({ key: 'id', direction: 'desc' });
 // Reactive variables for the update form
 const additionalPayment = ref(0); // Renamed from tambahanBayar for clarity
 const isEditModalOpen = ref(false); // Controls visibility of the edit modal
-
+const user = usePage().props.user as { id: number, name: string, role: string };
 // Interface for Product data
 interface Produk {
-  id_produk: number;
+  id: number;
   nama_produk: string;
   harga_jual: number;
   jumlah_stok: number;
 }
 
-// Interface for Transaction Detail data
+
 interface DetailTransaksi {
-  id?: number; // Optional ID for existing detail items (corresponds to id_detail_transaksi in backend validation)
-  id_produk: number; // Added to match backend payload structure
+  id?: number;
+  id_produk: number;
   jumlah: number;
   harga_satuan: number;
   total_harga: number;
-  produk: Produk; // Nested product object for display and stock checks
+  produk: Produk;
 }
 
-// Interface for Transaction Response data from API
+
 interface TransaksiResponse {
   id: number;
   sub_total_harga: number;
@@ -66,38 +67,41 @@ interface TransaksiResponse {
   total_bayar: number;
   total_kurang: number;
   status_pembayaran: 'cash' | 'kredit';
-  jatuh_tempo?: string | null; // Can be null
+  jatuh_tempo?: string | null;
   created_at: string;
   updated_at: string;
+  id_user?: number;
+  id_pelanggan?: number | null;
   user?: {
     id: number;
     name: string;
   };
   pelanggan?: {
-    id_pelanggan: number;
+    id: number;
     nama_pelanggan: string;
     nama_toko: string;
   };
-  detail_transaksis: DetailTransaksi[];
+  detail_transaksis: DetailTransaksi[]; // Match backend relationship name
 }
 
-/**
- * Fetches all transactions from the API.
- */
 const fetchTransaksis = async () => {
   try {
     isLoading.value = true;
     const { data } = await axios.get('/api/transaksi');
 
-    transactions.value = (data.data || data)
-      .map((t: TransaksiResponse) => ({
-        ...t,
-        created_at: t.created_at,
-        jatuh_tempo: t.jatuh_tempo || null, // Ensure jatuh_tempo is null if not set
-      }))
-      .sort((a: TransaksiResponse, b: TransaksiResponse) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
+    // Normalize data structure
+    transaksis.value = (data.data || data).map((t: any) => ({
+      ...t,
+      // Ensure consistent naming
+      detail_transaksis: t.detailtransaksis || t.detail_transaksis || [],
+      created_at: t.created_at,
+      jatuh_tempo: t.jatuh_tempo || null,
+      // Map user/pelanggan IDs
+      id_user: t.user?.id || t.id_user,
+      id_pelanggan: t.pelanggan?.id || t.id_pelanggan
+    })).sort((a: TransaksiResponse, b: TransaksiResponse) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   } catch (error: unknown) {
     let errorMessage = 'Gagal memuat data transaksi';
     if (axios.isAxiosError(error)) {
@@ -171,51 +175,33 @@ const fetchUsers = async () => {
  */
 const selectTransactionForEdit = async (transaksi: TransaksiResponse) => {
   try {
-    // Pastikan semua data master (produk, pelanggan, user) sudah diambil
     await Promise.all([fetchProduk(), fetchPelanggans(), fetchUsers()]);
 
-    // Lakukan deep clone pada objek transaksi untuk diedit
-    // Ini penting agar perubahan di form edit tidak langsung mempengaruhi data di tabel utama
-    const clonedTransaksi: TransaksiResponse = JSON.parse(JSON.stringify(transaksi));
-
-    // Proses detail_transaksis untuk memastikan data produknya lengkap dan konsisten
-    clonedTransaksi.detail_transaksis = (clonedTransaksi.detail_transaksis || []).map(item => {
-      const masterProduk = semuaProduk.value.find(p => p.id_produk === item.id_produk);
-
-      // Pastikan item.produk memiliki data yang lengkap.
-      // Jika masterProduk ditemukan, gunakan data master untuk stok dan harga jual terbaru.
-      // Jika tidak, gunakan data yang ada dari transaksi lama.
-      return {
-        ...item,
-        produk: masterProduk ? {
-          id_produk: masterProduk.id_produk,
-          nama_produk: masterProduk.nama_produk,
-          harga_jual: masterProduk.harga_jual, // Menggunakan harga jual terbaru dari master
-          jumlah_stok: masterProduk.jumlah_stok // Menggunakan stok terbaru dari master
-        } : {
-          // Fallback jika produk tidak ditemukan di daftar master (mungkin sudah dihapus/tidak aktif)
-          id_produk: item.id_produk,
-          nama_produk: item.produk?.nama_produk || 'Produk Tidak Ditemukan (ID: ' + item.id_produk + ')',
-          harga_jual: item.harga_satuan, // Tetap gunakan harga historis dari transaksi
-          jumlah_stok: 0 // Stok tidak diketahui jika produk master tidak ada
-        },
-        // Pastikan harga_satuan di item detail tetap harga transaksi (historis)
-        // Jika Anda ingin mengupdate harga detail menjadi harga jual terbaru,
-        // ubah `item.harga_satuan` menjadi `masterProduk.harga_jual` di sini.
-        // Namun, umumnya harga transaksi adalah historis, jadi biarkan saja.
-        // item.harga_satuan = item.harga_satuan; // Ini tidak perlu diubah, biarkan data aslinya
-        total_harga: item.jumlah * item.harga_satuan // Hitung ulang total_harga berdasarkan harga satuan historis
-      };
-    });
-
-    // Set jatuh_tempo ke string format YYYY-MM-DD untuk input date
-    clonedTransaksi.jatuh_tempo = transaksi.jatuh_tempo
-      ? new Date(transaksi.jatuh_tempo).toISOString().split('T')[0]
-      : null;
+    // Normalize data structure
+    const clonedTransaksi: TransaksiResponse = {
+      ...transaksi,
+      detail_transaksis: (transaksi.detail_transaksis || transaksi.detail_transaksis || []).map(item => {
+        const masterProduk = semuaProduk.value.find(p => p.id === item.id_produk);
+        return {
+          ...item,
+          produk: masterProduk || {
+            id: item.id_produk,
+            nama_produk: item.produk?.nama_produk || `Produk (ID: ${item.id_produk})`,
+            harga_jual: item.harga_satuan,
+            jumlah_stok: 0
+          }
+        };
+      }),
+      jatuh_tempo: transaksi.jatuh_tempo
+        ? new Date(transaksi.jatuh_tempo).toISOString().split('T')[0]
+        : null,
+      id_user: transaksi.user?.id || transaksi.id_user,
+      id_pelanggan: transaksi.pelanggan?.id || transaksi.id_pelanggan
+    };
 
     selectedTransaksi.value = clonedTransaksi;
-    additionalPayment.value = 0; // Reset additional payment
-    isEditModalOpen.value = true; // Open the dialog
+    additionalPayment.value = 0;
+    isEditModalOpen.value = true;
 
   } catch (error: unknown) {
     let errorMessage = 'Tidak dapat memuat data produk atau transaksi.';
@@ -302,49 +288,37 @@ const updateTransaction = async () => {
 
   try {
     const id = selectedTransaksi.value.id;
+    const sub_total_harga = computedSubTotalHarga.value;
+    const total_kurang = sisaTagihan.value;
 
-    // Recalculate sub_total_harga based on the current items in the form
-    const sub_total_harga = computedSubTotalHarga.value; // Use the computed property
-
-    // Determine total_kurang based on the new logic
-    const new_total_kurang = sisaTagihan.value; // Use the computed property for remaining balance
-
-    // Frontend validation: if status is 'cash', remaining balance must be zero
-    if (selectedTransaksi.value.status_pembayaran === 'cash' && new_total_kurang > 0) {
+    // Validate payment status
+    if (selectedTransaksi.value.status_pembayaran === 'cash' && total_kurang > 0) {
       throw new Error('Transaksi tidak dapat berstatus cash jika masih ada sisa tagihan.');
     }
 
-    // Construct the payload for the API request
+    // Construct payload matching backend expectations
     const payload = {
       sub_total_harga: sub_total_harga,
-      total_bayar: currentPaidAmount.value, // Send the accumulated total_bayar
-      total_kurang: new_total_kurang, // Send the calculated remaining balance
+      total_bayar: currentPaidAmount.value,
+      total_kurang: total_kurang,
       status_pembayaran: selectedTransaksi.value.status_pembayaran,
-      jatuh_tempo: selectedTransaksi.value.status_pembayaran === 'kredit' && selectedTransaksi.value.jatuh_tempo
+      jatuh_tempo: selectedTransaksi.value.status_pembayaran === 'kredit'
         ? selectedTransaksi.value.jatuh_tempo
         : null,
       diskon: selectedTransaksi.value.diskon || 0,
-      id_pelanggan: selectedTransaksi.value.pelanggan?.id_pelanggan || null,
-      id_user: selectedTransaksi.value.user?.id,
+      id_pelanggan: selectedTransaksi.value.pelanggan?.id || selectedTransaksi.value.id_pelanggan || null,
+      id_user: selectedTransaksi.value.user?.id || selectedTransaksi.value.id_user,
       items: selectedTransaksi.value.detail_transaksis.map(item => ({
-        id_detail_transaksi: item.id || null, // Pass id_detail_transaksi for existing items
-        id_produk: item.produk.id_produk,
+        id_detail_transaksi: item.id || null,
+        id_produk: item.id_produk,
         jumlah: item.jumlah,
-        harga_satuan: item.harga_satuan, // Ensure harga_satuan is sent
+        harga_satuan: item.harga_satuan,
       }))
     };
-
-    // Critical check for id_user as it's required by backend.
-    // In a real application, this should come from authenticated user context.
     if (!payload.id_user) {
-      // You should replace this with actual authenticated user ID logic.
-      // For demonstration, you might need to select a user from a dropdown or get from session.
-      // For now, if missing, default to the ID of the first available user.
-      payload.id_user = allUsers.value.length > 0 ? allUsers.value[0].id : 1; // Fallback to 1 if no users
-      console.warn("id_user not found for transaction, using ID:", payload.id_user);
+      throw new Error('Kasir harus dipilih');
     }
 
-    // Send the PUT request to update the transaction
     await axios.put(`/api/transaksi/${id}`, payload);
 
     Swal.fire({
@@ -393,7 +367,7 @@ const updateTransaction = async () => {
  */
 const deleteTransaction = async (id: number) => {
   // Cari transaksi yang akan dihapus
-  const transaksi = transactions.value.find(t => t.id === id);
+  const transaksi = transaksis.value.find(t => t.id === id);
 
   // Validasi: Cek apakah pelanggan masih memiliki kredit aktif
   if (transaksi && transaksi.status_pembayaran === 'kredit' && transaksi.total_kurang > 0) {
@@ -500,19 +474,26 @@ const sortTransactions = (key: string) => {
   }
 };
 
-// Fetch data when the component is mounted
-onMounted(() => {
-  fetchTransaksis();
-  fetchProduk();
-  fetchPelanggans();
-  fetchUsers(); // Fetch users to populate the user dropdown
+// Gunakan Promise.all untuk paralel request
+onMounted(async () => {
+  isLoading.value = true;
+  try {
+    await Promise.all([
+      fetchTransaksis(),
+      fetchProduk(),
+      fetchPelanggans(),
+      fetchUsers()
+    ]);
+  } finally {
+    isLoading.value = false;
+  }
 });
 
 /**
  * Computed property to filter transactions based on search term, status, and date range.
  */
 const filteredTransactions = computed(() => {
-  let result = [...transactions.value];
+  let result = [...transaksis.value];
 
   // Filter by status
   if (statusFilter.value !== 'all') {
@@ -546,8 +527,8 @@ const filteredTransactions = computed(() => {
 });
 
 // Reactive variable for adding new products to the transaction
-const produkBaru = ref<{ id_produk: number | null; jumlah: number }>({
-  id_produk: null,
+const produkBaru = ref<{ id: number | null; jumlah: number }>({
+  id: null,
   jumlah: 1
 });
 
@@ -568,28 +549,26 @@ const kurangiJumlah = (index: number) => {
 /**
  * Increments the quantity of a product in the selected transaction's detail.
  * Includes stock validation.
- * @param index The index of the detail item in the array.
+ * @param index 
  */
 const tambahJumlah = (index: number) => {
   if (!selectedTransaksi.value?.detail_transaksis?.[index]) return;
 
   const item = selectedTransaksi.value.detail_transaksis[index];
-  const produkMaster = semuaProduk.value.find(p => p.id_produk === item.produk.id_produk);
+  const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
   if (!produkMaster) {
     Swal.fire({ icon: 'error', title: 'Error', text: 'Produk tidak ditemukan di daftar master.' });
     return;
   }
 
-  // Calculate the total quantity of this product in the transaction (including the current item)
+
   const currentProductInTransactionCount = selectedTransaksi.value.detail_transaksis.reduce((sum, detail) => {
-    if (detail.id_produk === item.produk.id_produk) {
+    if (detail.id === item.produk.id) {
       return sum + detail.jumlah;
     }
     return sum;
   }, 0);
 
-  // Available stock for this specific product (master stock - what's already included in transaction)
-  // We need to check if incrementing the current item's quantity would exceed the master stock
   if (currentProductInTransactionCount + 1 > produkMaster.jumlah_stok) {
     Swal.fire({
       icon: 'warning',
@@ -620,7 +599,7 @@ const hapusProduk = (index: number) => {
 const tambahProdukBaru = () => {
   if (!selectedTransaksi.value) return;
 
-  const produkId = produkBaru.value.id_produk;
+  const produkId = produkBaru.value.id;
   if (!produkId) {
     Swal.fire({ icon: 'warning', title: 'Peringatan', text: 'Pilih produk terlebih dahulu.' });
     return;
@@ -630,7 +609,7 @@ const tambahProdukBaru = () => {
     return;
   }
 
-  const produkMaster = semuaProduk.value.find(p => p.id_produk === produkId);
+  const produkMaster = semuaProduk.value.find(p => p.id === produkId);
   if (!produkMaster) {
     Swal.fire({ icon: 'error', title: 'Error', text: 'Produk tidak ditemukan di daftar master.' });
     return;
@@ -638,7 +617,7 @@ const tambahProdukBaru = () => {
 
   // Calculate total quantity of this product already in the transaction
   const totalExistingJumlah = selectedTransaksi.value.detail_transaksis
-    .filter(d => d.id_produk === produkId)
+    .filter(d => d.id === produkId)
     .reduce((sum, d) => sum + d.jumlah, 0);
 
   // Available stock from master product minus what's already in the transaction
@@ -655,7 +634,7 @@ const tambahProdukBaru = () => {
 
   // Check if the product already exists in the transaction details
   const existingDetail = selectedTransaksi.value.detail_transaksis.find(
-    item => item.id_produk === produkId
+    item => item.id === produkId
   );
 
   if (existingDetail) {
@@ -665,22 +644,18 @@ const tambahProdukBaru = () => {
   } else {
     // Product is new, add it as a new detail item
     selectedTransaksi.value.detail_transaksis.push({
-      id: undefined, // ID will be generated by the backend for new items
-      id_produk: produkMaster.id_produk, // Important: send id_produk
+      id_produk: produkMaster.id, // Gunakan id_produk
       jumlah: produkBaru.value.jumlah,
-      harga_satuan: produkMaster.harga_jual, // Use the current selling price from master product
+      harga_satuan: produkMaster.harga_jual,
       total_harga: produkBaru.value.jumlah * produkMaster.harga_jual,
-      produk: { // Populate the nested product object for display
-        id_produk: produkMaster.id_produk,
-        nama_produk: produkMaster.nama_produk,
-        harga_jual: produkMaster.harga_jual,
-        jumlah_stok: produkMaster.jumlah_stok
+      produk: {
+        ...produkMaster // Simpan salinan data produk
       }
     });
   }
 
   // Reset the new product form
-  produkBaru.value = { id_produk: null, jumlah: 1 };
+  produkBaru.value = { id: null, jumlah: 1 };
 };
 
 /**
@@ -708,45 +683,38 @@ const validateAdditionalPayment = () => {
 /**
  * Updates the total price of a product item when its quantity or unit price changes.
  * Includes stock validation.
- * @param index The index of the detail item.
+ * @param index 
  */
 const updateHargaProduk = (index: number) => {
   if (!selectedTransaksi.value?.detail_transaksis?.[index]) return;
 
   const item = selectedTransaksi.value.detail_transaksis[index];
-  const produkMaster = semuaProduk.value.find(p => p.id_produk === item.produk.id_produk);
+  const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
   if (!produkMaster) return;
 
   if (item.jumlah < 1) item.jumlah = 1;
 
-  // Recalculate total quantity for this product across all detail items
+
   const totalQuantityForThisProduct = selectedTransaksi.value.detail_transaksis.reduce((sum, detail) => {
-    if (detail.id_produk === item.produk.id_produk) {
+    if (detail.id === item.produk.id) {
       return sum + detail.jumlah;
     }
     return sum;
   }, 0);
 
-  // Validate against master stock
   if (totalQuantityForThisProduct > produkMaster.jumlah_stok) {
     Swal.fire({
       icon: 'warning',
       title: 'Stok Terbatas',
       text: `Jumlah total ${item.produk.nama_produk} yang Anda masukkan (${totalQuantityForThisProduct}) melebihi stok tersedia (${produkMaster.jumlah_stok}).`,
     });
-    // Adjust the current item's quantity to match the remaining stock
     const diff = totalQuantityForThisProduct - produkMaster.jumlah_stok;
-    item.jumlah = Math.max(1, item.jumlah - diff); // Ensure quantity is at least 1
+    item.jumlah = Math.max(1, item.jumlah - diff);
   }
 
   item.total_harga = item.jumlah * item.harga_satuan;
 };
 
-
-
-
-
-// --- UI Rendering ---
 </script>
 
 <template>
@@ -854,7 +822,7 @@ const updateHargaProduk = (index: number) => {
 
               <div>
                 <Label for="pelanggan">Pelanggan</Label>
-                <Select v-model="selectedTransaksi.pelanggan!.id_pelanggan">
+                <Select v-model="selectedTransaksi.pelanggan!.id">
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih Pelanggan" />
                   </SelectTrigger>
@@ -930,12 +898,12 @@ const updateHargaProduk = (index: number) => {
               <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-end border-b pb-4">
                 <div class="col-span-2">
                   <Label for="new_produk">Tambah Produk Baru</Label>
-                  <Select v-model="produkBaru.id_produk">
+                  <Select v-model="produkBaru.id">
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih Produk" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="produk in semuaProduk" :key="produk.id_produk" :value="produk.id_produk">
+                      <SelectItem v-for="produk in semuaProduk" :key="produk.id" :value="produk.id">
                         {{ produk.nama_produk }} (Stok: {{ produk.jumlah_stok }})
                       </SelectItem>
                     </SelectContent>

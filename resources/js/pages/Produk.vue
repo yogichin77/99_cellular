@@ -3,26 +3,26 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import { Check, Image as ImageIcon, Pencil, PlusCircle, Search, Trash2, X } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, onMounted, ref } from 'vue';
-import { PlusCircle, Pencil, Trash2, X, Check, Search, Image as ImageIcon } from 'lucide-vue-next';
 
 // Shadcn UI Components
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Produk', href: '/produk' }];
 
 // State
 const produk = ref<any[]>([]);
-const kategoris = ref<{ id_kategori: number, nama_kategori: string }[]>([]);
-const mereks = ref<{ id_merek: number, nama_merek: string }[]>([]);
+const kategoris = ref<{ id: number, nama_kategori: string }[]>([]);
+const mereks = ref<{ id: number, nama_merek: string }[]>([]);
 const editingId = ref<number | null>(null);
 const searchTerm = ref('');
 const isLoading = ref(false);
@@ -121,7 +121,10 @@ const formatCurrency = (value: number) => {
 const submitForm = async () => {
   try {
     isSubmitting.value = true;
-
+    console.log({
+      id_kategori: form.value.id_kategori,
+      id_merek: form.value.id_merek
+    });
     const formData = new FormData();
     formData.append('nama_produk', form.value.nama_produk);
     formData.append('id_kategori', String(form.value.id_kategori));
@@ -167,7 +170,7 @@ const editProduk = (item: any) => {
     gambar_produk: item.gambar_produk || null,
     previewImage: item.gambar_produk ? `/storage/${item.gambar_produk}` : ''
   };
-  editingId.value = item.id_produk;
+  editingId.value = item.id;
 };
 
 // Delete produk
@@ -303,8 +306,7 @@ onMounted(fetchproduk);
                       <SelectValue placeholder="Pilih Kategori" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="kategori in kategoris" :key="kategori.id_kategori"
-                        :value="kategori.id_kategori">
+                      <SelectItem v-for="kategori in kategoris" :key="kategori.id" :value="kategori.id">
                         {{ kategori.nama_kategori }}
                       </SelectItem>
                     </SelectContent>
@@ -320,7 +322,7 @@ onMounted(fetchproduk);
                       <SelectValue placeholder="Pilih Merek" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem v-for="merek in mereks" :key="merek.id_merek" :value="merek.id_merek">
+                      <SelectItem v-for="merek in mereks" :key="merek.id" :value="merek.id">
                         {{ merek.nama_merek }}
                       </SelectItem>
                     </SelectContent>
@@ -469,7 +471,7 @@ onMounted(fetchproduk);
                   </TableRow>
                 </template>
                 <template v-else>
-                  <TableRow v-for="item in filteredProduk" :key="item.id_produk"
+                  <TableRow v-for="item in filteredProduk" :key="item.id"
                     class="group hover:bg-muted/50 transition-colors">
                     <TableCell>
                       <img :src="item.gambar_produk ? `/storage/${item.gambar_produk}` : '/placeholder-product.jpg'"
@@ -505,7 +507,7 @@ onMounted(fetchproduk);
                         class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Pencil class="h-4 w-4" />
                       </Button>
-                      <Button @click="deleteProduk(item.id_produk)" variant="ghost" size="sm"
+                      <Button @click="deleteProduk(item.id)" variant="ghost" size="sm"
                         class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 class="h-4 w-4" />
                       </Button>

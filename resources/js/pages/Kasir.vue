@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { clearOfflineTransaksis, getAllOfflineTransaksis, saveOfflineTransaksi } from '@/lib/indexedDb';
 import DetailTransaksi from '@/pages/DetailTransaksi.vue';
 import StrukTransaksi from '@/pages/StrukTransaksi.vue';
 import { type BreadcrumbItem } from '@/types';
@@ -17,14 +18,11 @@ import axios from 'axios';
 import { CheckCircle, Eye, History, Package, Plus, Printer, Search, ShoppingCart, Trash2, User } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { saveOfflineTransaksi } from '@/lib/indexedDb';
-import { getAllOfflineTransaksis, clearOfflineTransaksis } from '@/lib/indexedDb';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Kasir', href: '/kasir' }];
-
 const user = usePage().props.user as { id: number, name: string, role: string };
 
 interface Produk {
-    id_produk: number;
+    id: number;
     nama_produk: string;
     harga_jual: number;
     jumlah_stok: number;
@@ -33,7 +31,7 @@ interface Produk {
 };
 
 interface Pelanggan {
-    id_pelanggan: number;
+    id: number;
     nama_pelanggan: string;
     nama_toko: string;
     alamat?: string;
@@ -41,7 +39,7 @@ interface Pelanggan {
 };
 
 interface ItemTransaksi {
-    id_produk: number;
+    id: number;
     nama_produk: string;
     harga_satuan: number;
     jumlah: number;
@@ -65,7 +63,7 @@ interface TransaksiResponse {
         name: string;
     };
     pelanggan?: {
-        id_pelanggan: number;
+        id: number;
         nama_pelanggan: string;
         nama_toko: string;
     };
@@ -75,7 +73,7 @@ interface TransaksiResponse {
         harga_satuan: number;
         total_harga: number;
         produk: {
-            id_produk: number;
+            id: number;
             nama_produk: string;
         };
     }>;
@@ -95,8 +93,6 @@ window.addEventListener('online', async () => {
     await clearOfflineTransaksis();
 });
 
-
-
 // State Management
 const pelanggans = ref<Pelanggan[]>([]);
 const produks = ref<Produk[]>([]);
@@ -115,6 +111,7 @@ const loadingTambahPelanggan = ref(false);
 const showDetailModal = ref(false);
 const showPrintModal = ref(false);
 const currentTransaction = ref<TransaksiResponse | null>(null);
+
 const formPelanggan = ref({
     nama_pelanggan: '',
     alamat: '',
@@ -122,14 +119,9 @@ const formPelanggan = ref({
     nama_toko: '',
 });
 
-
 const showTransactionDetail = async (transaksi: TransaksiResponse) => {
     try {
-        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`, {
-            params: {
-                include: 'user,detail_transaksis.produk'
-            }
-        });
+        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`);
         currentTransaction.value = data.data;
         showDetailModal.value = true;
     } catch (error) {
@@ -147,12 +139,7 @@ const filteredPelanggan = computed(() => {
 
 const handlePrint = async (transaksi: TransaksiResponse) => {
     try {
-        // Fetch ulang data transaksi dengan relasi yang diperlukan
-        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`, {
-            params: {
-                include: 'user,detail_transaksis.produk,pelanggan' // Tambahkan relasi
-            }
-        });
+        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`);
         currentTransaction.value = data.data;
         showPrintModal.value = true;
         await nextTick();
@@ -161,7 +148,6 @@ const handlePrint = async (transaksi: TransaksiResponse) => {
         Swal.fire('Error', 'Gagal memuat data untuk dicetak', 'error');
     }
 };
-
 
 function showSuccess(message: string) {
     Swal.fire({
@@ -183,8 +169,7 @@ async function tambahPelanggan() {
         pelanggans.value.push(newPelanggan);
         formPelanggan.value = { nama_pelanggan: '', nama_toko: '', alamat: '', no_handphone: '' };
         openModalTambahPelanggan.value = false;
-        selectedPelanggan.value = newPelanggan.id_pelanggan;
-
+        selectedPelanggan.value = newPelanggan.id;
     } catch (error) {
         alert("Gagal tambah pelanggan baru. Silakan coba lagi.");
     } finally {
@@ -264,204 +249,215 @@ const fetchPelanggan = async () => {
 };
 
 const fetchProduk = async () => {
-    try {
-        const { data } = await axios.get('/api/produk');
-        produks.value = data.data.map((p: Produk) => ({ ...p, qty: 1 }));
-    } catch (error) {
-        console.error('Error fetching produk:', error);
-        throw error;
-    }
-};
+        try {
+            const { data } = await axios.get('/api/produk');
+            produks.value = data.data.map((p: Produk) => ({
+                ...p,
+                qty: 1,
+                harga_jual: Number(p.harga_jual)
+            }));
+        } catch (error) {
+            console.error('Error fetching produk:', error);
+            throw error;
+        }
+    };
 
-const fetchTransaksis = async () => {
-    try {
-        const { data } = await axios.get('/api/transaksi');
-        // Urutkan berdasarkan tanggal terbaru
-        transaksis.value = (data.data || data)
-            .map((t: TransaksiResponse) => ({
-                ...t,
-                created_at: t.created_at // Simpan format asli untuk sorting
-            }))
-            .sort((a: TransaksiResponse, b: TransaksiResponse) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            );
-    } catch (error) {
-        console.error('Error fetching transaksi:', error);
-        Swal.fire('Error', 'Gagal memuat riwayat transaksi', 'error');
-    }
-};
+    const fetchTransaksis = async () => {
+        try {
+            const { data } = await axios.get('/api/transaksi');
+            transaksis.value = data.data
+                .map((t: TransaksiResponse) => ({
+                    ...t,
+                    created_at: t.created_at
+                }))
+                .sort((a: TransaksiResponse, b: TransaksiResponse) =>
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
+        } catch (error) {
+            console.error('Error fetching transaksi:', error);
+            Swal.fire('Error', 'Gagal memuat riwayat transaksi', 'error');
+        }
+    };
 
-// Transaction Functions
-const addItem = (produk: Produk) => {
-    if (!produk.qty || produk.qty < 1) {
-        Swal.fire('Peringatan', 'Masukkan jumlah yang valid', 'warning');
-        return;
-    }
-
-    const stokTersedia = produk.jumlah_stok;
-    const existingItemIndex = items.value.findIndex(item => item.id_produk === produk.id_produk);
-
-    if (existingItemIndex >= 0) {
-        const newQty = items.value[existingItemIndex].jumlah + produk.qty;
-        if (newQty > stokTersedia) {
-            Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
+    // Transaction Functions
+    const addItem = (produk: Produk) => {
+        if (!produk.qty || produk.qty < 1) {
+            Swal.fire('Peringatan', 'Masukkan jumlah yang valid', 'warning');
             return;
         }
-        items.value[existingItemIndex].jumlah = newQty;
-        items.value[existingItemIndex].total_harga = newQty * items.value[existingItemIndex].harga_satuan;
-    } else {
-        if (produk.qty > stokTersedia) {
-            Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
-            return;
+
+        const stokTersedia = produk.jumlah_stok;
+        const existingItemIndex = items.value.findIndex(item => item.id === produk.id);
+
+        if (existingItemIndex >= 0) {
+            const newQty = items.value[existingItemIndex].jumlah + produk.qty;
+            if (newQty > stokTersedia) {
+                Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
+                return;
+            }
+            items.value[existingItemIndex].jumlah = newQty;
+            items.value[existingItemIndex].total_harga = newQty * items.value[existingItemIndex].harga_satuan;
+        } else {
+            if (produk.qty > stokTersedia) {
+                Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
+                return;
+            }
+            items.value.push({
+                id: produk.id,
+                nama_produk: produk.nama_produk,
+                harga_satuan: produk.harga_jual,
+                jumlah: produk.qty,
+                total_harga: produk.harga_jual * produk.qty,
+                stok: produk.jumlah_stok,
+                harga_beli: produk.harga_beli
+            });
         }
-        items.value.push({
-            id_produk: produk.id_produk,
-            nama_produk: produk.nama_produk,
-            harga_satuan: produk.harga_jual,
-            jumlah: produk.qty,
-            total_harga: produk.harga_jual * produk.qty,
-            stok: produk.jumlah_stok,
-            harga_beli: produk.harga_beli
-        });
-    }
-    produk.qty = 1;
-};
+        produk.qty = 1;
+    };
 
-const removeItem = (index: number) => {
-    items.value.splice(index, 1);
-};
+    const removeItem = (index: number) => {
+        items.value.splice(index, 1);
+    };
 
-const resetForm = () => {
-    items.value = [];
-    diskon.value = 0;
-    totalBayar.value = 0;
-    selectedPelanggan.value = null;
-    statusPembayaran.value = null;
-    jatuhTempo.value = '';
-    produks.value.forEach(p => p.qty = 1);
-};
+    const resetForm = () => {
+        if (items.value.length > 0) {
+            Swal.fire({
+                title: 'Reset Transaksi?',
+                text: 'Semua item akan dihapus',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Reset',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    doResetForm();
+                }
+            });
+        } else {
+            doResetForm();
+        }
+    };
 
-watch(selectedPelanggan, (newVal) => {
-    if (newVal === null && statusPembayaran.value === 'kredit') {
+    const doResetForm = () => {
+        items.value = [];
+        diskon.value = 0;
+        totalBayar.value = 0;
+        selectedPelanggan.value = null;
         statusPembayaran.value = null;
         jatuhTempo.value = '';
-    }
-});
+        produks.value.forEach(p => p.qty = 1);
+    };
 
-const validateTransaction = () => {
-    if (items.value.length === 0) {
-        Swal.fire('Error', 'Tambahkan minimal 1 produk', 'error');
-        return false;
-    }
+    watch(selectedPelanggan, newVal => {
+        if (newVal === null && statusPembayaran.value === 'kredit') {
+            statusPembayaran.value = null;
+            jatuhTempo.value = '';
+        }
+    });
 
-    if (!statusPembayaran.value) {
-        Swal.fire('Error', 'Pilih status pembayaran', 'error');
-        return false;
-    }
-    if (statusPembayaran.value === 'kredit' && selectedPelanggan.value === null) {
-        Swal.fire('Error', 'Pelanggan umum tidak dapat menggunakan status pembayaran kredit', 'error');
-        return false;
-    }
-    const totalTagihan = totalSetelahDiskon.value;
-
-    if (statusPembayaran.value === 'kredit') {
-        if (!jatuhTempo.value) {
-            Swal.fire('Error', 'Isi tanggal jatuh tempo', 'error');
+    const validateTransaction = () => {
+        if (items.value.length === 0) {
+            Swal.fire('Error', 'Tambahkan minimal 1 produk', 'error');
             return false;
         }
-        if (totalBayar.value >= totalTagihan) {
-            Swal.fire('Error', 'Untuk kredit, jumlah bayar harus kurang dari total', 'error');
+
+        if (!statusPembayaran.value) {
+            Swal.fire('Error', 'Pilih status pembayaran', 'error');
             return false;
         }
-    } else {
-        if (totalBayar.value < totalTagihan) {
-            Swal.fire('Error', 'Jumlah bayar tidak mencukupi', 'error');
+        if (statusPembayaran.value === 'kredit' && selectedPelanggan.value === null) {
+            Swal.fire('Error', 'Pelanggan umum tidak dapat menggunakan status pembayaran kredit', 'error');
             return false;
         }
-    }
-    return true;
-};
+        const totalTagihan = totalSetelahDiskon.value;
 
-const prosesTransaksi = async () => {
-    if (!validateTransaction()) return;
-    isLoading.value = true;
-    try {
-        const payload = {
-            sub_total_harga: subtotal.value,
-            total_bayar: totalBayar.value,
-            status_pembayaran: statusPembayaran.value,
-            jatuh_tempo: statusPembayaran.value === 'kredit' ? jatuhTempo.value : null,
-            diskon: diskon.value,
-            id_pelanggan: selectedPelanggan.value,
-            id_user: user.id,
-            items: items.value.map(item => ({
-                id_produk: item.id_produk,
-                jumlah: item.jumlah
-            }))
-        };
+        if (statusPembayaran.value === 'kredit') {
+            if (!jatuhTempo.value) {
+                Swal.fire('Error', 'Isi tanggal jatuh tempo', 'error');
+                return false;
+            }
+            if (totalBayar.value >= totalTagihan) {
+                Swal.fire('Error', 'Untuk kredit, jumlah bayar harus kurang dari total', 'error');
+                return false;
+            }
+        } else {
+            if (totalBayar.value < totalTagihan) {
+                Swal.fire('Error', 'Jumlah bayar tidak mencukupi', 'error');
+                return false;
+            }
+        }
+        return true;
+    };
 
-        // Jika offline, simpan ke IndexedDB
-        if (!navigator.onLine) {
-            await saveOfflineTransaksi(payload);
+    const prosesTransaksi = async () => {
+        if (!validateTransaction()) return;
+        isLoading.value = true;
+        try {
+            const payload = {
+                sub_total_harga: subtotal.value,
+                diskon: diskon.value,
+                total_bayar: totalBayar.value,
+                status_pembayaran: statusPembayaran.value,
+                jatuh_tempo: statusPembayaran.value === 'kredit' ? jatuhTempo.value : null,
+                id_pelanggan: selectedPelanggan.value,
+                id_user: user.id,
+                items: items.value.map(item => ({
+                    id_produk: item.id,
+                    jumlah: item.jumlah,
+
+                }))
+            };
+
+            // Jika offline, simpan ke IndexedDB
+            if (!navigator.onLine) {
+                await saveOfflineTransaksi(payload);
+                Swal.fire({
+                    title: 'Offline Mode',
+                    text: 'Transaksi disimpan secara offline dan akan dikirim saat online.',
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
+                resetForm();
+                return;
+            }
+
+            // Jika online, langsung kirim ke API
+            console.log("Payload:", JSON.stringify(payload, null, 2));
+            const { data } = await axios.post('/api/transaksi', payload);
+
+            currentTransaction.value = data.data;
+
+            await Swal.fire({
+                title: 'Transaksi Berhasil!',
+                html: `No. Transaksi: <b>#${data.data.id}</b>`,
+                icon: 'success',
+                timer: 1000,
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                didClose: () => handlePrint(data.data)
+            });
+
+            resetForm();
+            await fetchProduk();
+            await fetchTransaksis();
+
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message ||
+                error.response?.data?.errors?.join('\n') ||
+                'Terjadi kesalahan saat memproses transaksi';
+
             Swal.fire({
-                title: 'Offline Mode',
-                text: 'Transaksi disimpan secara offline dan akan dikirim saat online.',
-                icon: 'info',
+                title: 'Error!',
+                text: errorMessage,
+                icon: 'error',
                 confirmButtonText: 'OK'
             });
-            resetForm();
-            return;
+        } finally {
+            isLoading.value = false;
         }
-
-        // Jika online, langsung kirim ke API
-        const { data } = await axios.post('/api/transaksi', payload);
-
-        currentTransaction.value = {
-            ...data.data,
-            detail_transaksis: data.data.detail_transaksis.map((detail: any) => ({
-                id: detail.id,
-                jumlah: detail.jumlah,
-                harga_satuan: detail.harga_satuan,
-                total_harga: detail.total_harga,
-                produk: {
-                    id_produk: detail.produk?.id_produk,
-                    nama_produk: detail.produk?.nama_produk
-                }
-            }))
-        };
-
-        await Swal.fire({
-            title: 'Transaksi Berhasil!',
-            html: `No. Transaksi: <b>#${data.data.id}</b>`,
-            icon: 'success',
-            timer: 1000,
-            showConfirmButton: false,
-            allowOutsideClick: false,
-            didClose: () => handlePrint(data.data)
-        });
-
-        resetForm();
-        await fetchProduk();
-        await fetchTransaksis();
-
-
-    } catch (error: any) {
-        // Handle error response dari API
-        const errorMessage = error.response?.data?.message ||
-            error.response?.data?.errors?.join('\n') ||
-            'Terjadi kesalahan saat memproses transaksi';
-
-        Swal.fire({
-            title: 'Error!',
-            text: errorMessage,
-            icon: 'error',
-            confirmButtonText: 'OK'
-        });
-    } finally {
-        isLoading.value = false;
-    }
-};
+    };
 </script>
+
 
 
 <template>
@@ -503,7 +499,7 @@ const prosesTransaksi = async () => {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            <TableRow v-for="produk in filteredProduks" :key="produk.id_produk">
+                                            <TableRow v-for="produk in filteredProduks" :key="produk.id">
                                                 <TableCell class="font-medium truncate max-w-[120px] sm:max-w-[200px]">
                                                     {{ produk.nama_produk }}
                                                 </TableCell>
@@ -578,8 +574,8 @@ const prosesTransaksi = async () => {
                                             <span class="text-muted-foreground">Umum</span>
                                         </SelectItem>
 
-                                        <SelectItem v-for="pelanggan in filteredPelanggan" :key="pelanggan.id_pelanggan"
-                                            :value="pelanggan.id_pelanggan" class="text-xs sm:text-sm">
+                                        <SelectItem v-for="pelanggan in filteredPelanggan" :key="pelanggan.id"
+                                            :value="pelanggan.id" class="text-xs sm:text-sm">
                                             <div class="flex flex-col">
                                                 <span class="font-medium">{{ pelanggan.nama_pelanggan }}</span>
                                                 <span class="text-xs text-muted-foreground">
@@ -652,7 +648,7 @@ const prosesTransaksi = async () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <tr v-for="(item, index) in items" :key="item.id_produk" class="border-t">
+                                        <tr v-for="(item, index) in items" :key="item.id" class="border-t">
                                             <td class="px-3 py-2 whitespace-nowrap font-medium">
                                                 {{ item.nama_produk }}
                                             </td>

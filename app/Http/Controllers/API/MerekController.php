@@ -22,7 +22,7 @@ class MerekController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'nama_merek' => 'required|string|max:255|unique:produks,nama_merek',
+            'nama_merek' => 'required|string|max:255|unique:mereks,nama_merek',
         ]);
 
         if ($validator->fails()) {
@@ -33,7 +33,7 @@ class MerekController extends Controller
             ], 422);
         }
 
-        $merek = merek::create($request->all());
+        $merek = Merek::create($request->all());
 
         return response()->json([
             'success' => true,
@@ -44,7 +44,7 @@ class MerekController extends Controller
 
     public function show(string $id)
     {
-        $merek = Merek::where('id_merek', $id)->first();
+        $merek = Merek::find($id);
 
         if (!$merek) {
             return response()->json([
@@ -62,7 +62,7 @@ class MerekController extends Controller
 
     public function update(Request $request, string $id)
     {
-        $merek = Merek::where('id_merek', $id)->first();
+        $merek = Merek::find($id);
 
         if (!$merek) {
             return response()->json([
@@ -72,7 +72,7 @@ class MerekController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'nama_merek' => 'required|string|max:255|unique:mereks,nama_merek,' . $id . ',id_merek',
+            'nama_merek' => 'required|string|max:255|unique:mereks,nama_merek,' . $id,
         ]);
 
         if ($validator->fails()) {
@@ -87,14 +87,14 @@ class MerekController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Kategori berhasil diperbarui',
+            'message' => 'Merek berhasil diperbarui',
             'data' => $merek
         ]);
     }
 
     public function destroy(string $id)
     {
-        $merek = Merek::where('id_merek', $id)->first();
+        $merek = Merek::find($id);
 
         if (!$merek) {
             return response()->json([

@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('produks', function (Blueprint $table) {
-            $table->id('id_produk'); // Primary key
+            $table->id();
             $table->string('nama_produk');
-            $table->foreignId('id_kategori')->references('id_kategori')->on('kategoris')->onDelete('cascade');
-            $table->foreignId('id_merek')->references('id_merek')->on('mereks')->onDelete('cascade');       // relasi ke tabel merek
+            $table->foreignId('id_kategori')->constrained('kategoris')->onDelete('cascade');
+            $table->foreignId('id_merek')->constrained('mereks')->onDelete('cascade');
             $table->decimal('harga_modal', 15, 2); // format harga umum
             $table->decimal('harga_jual', 15, 2);
             $table->integer('jumlah_stok')->default(0);

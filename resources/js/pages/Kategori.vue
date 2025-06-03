@@ -65,11 +65,11 @@ const submitForm = async () => {
 // Edit category
 const editkategori = (item: any) => {
     form.value = { nama_kategori: item.nama_kategori };
-    editingId.value = item.id_kategori;
+    editingId.value = item.id;
 };
 
 // Delete category
-const deletekategori = async (id_kategori: number) => {
+const deletekategori = async (id: number) => {
     const result = await Swal.fire({
         title: 'Yakin menghapus kategori?',
         text: 'Data tidak bisa dikembalikan setelah dihapus',
@@ -83,12 +83,12 @@ const deletekategori = async (id_kategori: number) => {
     if (result.isConfirmed) {
         try {
             isLoading.value = true;
-            await axios.delete(`/api/kategori/${id_kategori}`);
+            await axios.delete(`/api/kategori/${id}`);
             await fetchkategori();
             Swal.fire('Berhasil!', 'Kategori telah dihapus', 'success');
         } catch (error) {
             console.error('Error deleting category:', error);
-            Swal.fire('Error', 'Gagal menghapus kategori', 'error');
+            Swal.fire('Error', 'Gagal menghapus kategori karena terkait pada produk', 'error');
         } finally {
             isLoading.value = false;
         }
@@ -175,7 +175,7 @@ onMounted(fetchkategori);
                             <TableBody>
                                 <TableRow 
                                     v-for="item in kategori" 
-                                    :key="item.id_kategori"
+                                    :key="item.id"
                                     class="group hover:bg-muted/50 transition-colors"
                                 >
                                     <TableCell class="font-medium">
@@ -191,7 +191,7 @@ onMounted(fetchkategori);
                                             <Pencil class="h-4 w-4" />
                                         </Button>
                                         <Button 
-                                            @click="deletekategori(item.id_kategori)" 
+                                            @click="deletekategori(item.id)" 
                                             variant="ghost" 
                                             size="sm"
                                             class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"

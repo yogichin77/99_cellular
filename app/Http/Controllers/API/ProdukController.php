@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -32,8 +31,8 @@ class ProdukController extends Controller
     {
         $validated = $request->validate([
             'nama_produk' => 'required|string|max:255',
-            'id_kategori' => 'required|exists:kategoris,id_kategori',
-            'id_merek' => 'required|exists:mereks,id_merek',
+            'id_kategori' => 'required|exists:kategoris,id',
+            'id_merek' => 'required|exists:mereks,id',
             'harga_modal' => 'required|numeric|min:0',
             'harga_jual' => 'required|numeric|min:0',
             'jumlah_stok' => 'required|integer|min:0',
@@ -49,13 +48,12 @@ class ProdukController extends Controller
         return response()->json($produk->load(['kategori', 'merek']), 201);
     }
 
-
     public function update(Request $request, Produk $produk)
     {
         $validated = $request->validate([
             'nama_produk' => 'required|string|max:255',
-            'id_kategori' => 'required|exists:kategoris,id_kategori',
-            'id_merek' => 'required|exists:mereks,id_merek',
+            'id_kategori' => 'required|exists:kategoris,id',
+            'id_merek' => 'required|exists:mereks,id',
             'harga_modal' => 'required|numeric|min:0',
             'harga_jual' => 'required|numeric|min:0',
             'jumlah_stok' => 'required|integer|min:0',
@@ -70,6 +68,7 @@ class ProdukController extends Controller
         $produk->update($validated);
         return response()->json($produk->load(['kategori', 'merek']));
     }
+
     public function destroy($id)
     {
         $produk = Produk::find($id);

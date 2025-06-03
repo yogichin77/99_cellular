@@ -75,11 +75,11 @@ const editpelanggan = (item: any) => {
         alamat: item.alamat || '',
         nama_toko: item.nama_toko || '',
     };
-    editingId.value = item.id_pelanggan;
+    editingId.value = item.id;
 };
 
 // Delete customer
-const deletepelanggan = async (id_pelanggan: number) => {
+const deletepelanggan = async (id: number) => {
     const result = await Swal.fire({
         title: 'Yakin menghapus pelanggan?',
         text: 'Data tidak bisa dikembalikan setelah dihapus',
@@ -93,7 +93,7 @@ const deletepelanggan = async (id_pelanggan: number) => {
 
     if (result.isConfirmed) {
         try {
-            await axios.delete(`/api/pelanggan/${id_pelanggan}`);
+            await axios.delete(`/api/pelanggan/${id}`);
             await fetchpelanggan();
             showSuccess('Pelanggan berhasil dihapus');
         } catch (error) {
@@ -277,7 +277,7 @@ onMounted(fetchpelanggan);
                                                 class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Pencil class="h-4 w-4" />
                                             </Button>
-                                            <Button @click="deletepelanggan(item.id_pelanggan)" variant="ghost"
+                                            <Button @click="deletepelanggan(item.id)" variant="ghost"
                                                 size="sm"
                                                 class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Trash2 class="h-4 w-4" />

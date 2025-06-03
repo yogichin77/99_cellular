@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { Check, Pencil, PlusCircle, Trash2, X } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
-import { PlusCircle, Pencil, Trash2, X, Check } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
 
 // Shadcn UI Components
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Merek', href: '/merek' }
@@ -87,11 +87,11 @@ const submitForm = async () => {
 // Edit brand
 const editmerek = (item: any) => {
     form.value = { nama_merek: item.nama_merek };
-    editingId.value = item.id_merek;
+    editingId.value = item.id;
 };
 
 // Delete brand
-const deletemerek = async (id_merek: number) => {
+const deletemerek = async (id: number) => {
     const result = await Swal.fire({
         title: 'Yakin menghapus merek?',
         text: 'Data tidak bisa dikembalikan setelah dihapus',
@@ -105,7 +105,7 @@ const deletemerek = async (id_merek: number) => {
 
     if (result.isConfirmed) {
         try {
-            await axios.delete(`/api/merek/${id_merek}`);
+            await axios.delete(`/api/merek/${id}`);
             await fetchmerek();
             Swal.fire({
                 title: 'Berhasil!',
@@ -117,7 +117,7 @@ const deletemerek = async (id_merek: number) => {
             console.error('Failed to delete brand:', error);
             Swal.fire({
                 title: 'Error',
-                text: 'Gagal menghapus merek',
+                text: 'Gagal menghapus merek karena terkait pada produk',
                 icon: 'error',
                 confirmButtonColor: '#3b82f6',
             });
@@ -219,7 +219,7 @@ onMounted(fetchmerek);
                                 <template v-else>
                                     <TableRow 
                                         v-for="item in merek" 
-                                        :key="item.id_merek"
+                                        :key="item.id"
                                         class="group hover:bg-muted/50 transition-colors"
                                     >
                                         <TableCell class="font-medium">
@@ -235,7 +235,7 @@ onMounted(fetchmerek);
                                                 <Pencil class="h-4 w-4" />
                                             </Button>
                                             <Button 
-                                                @click="deletemerek(item.id_merek)" 
+                                                @click="deletemerek(item.id)" 
                                                 variant="ghost" 
                                                 size="sm"
                                                 class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"

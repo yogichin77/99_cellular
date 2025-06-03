@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\API\ProdukController;
 use App\Http\Controllers\API\KategoriController;
-use App\Http\Controllers\Api\MerekController;
-use App\Http\Controllers\Api\TransaksiController;
+use App\Http\Controllers\API\MerekController;
+use App\Http\Controllers\API\TransaksiController;
 use App\Http\Controllers\API\PelangganController;
 use App\Http\Controllers\API\UserController;
 use Illuminate\Support\Facades\Route;
@@ -13,6 +13,8 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
+
+
 
 // Grup untuk user yang sudah login dan terverifikasi
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -26,7 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Kasir');
     })->name('Kasir')->middleware('role:kasir');
 
-        Route::get('pramuniaga', function () {
+    Route::get('pramuniaga', function () {
         return Inertia::render('Pramuniaga');
     })->name('Pramuniaga')->middleware('role:pramuniaga');
 
@@ -51,7 +53,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('datatransaksi', function () {
             return Inertia::render('DataTransaksi');
         })->name('DataTransaksi');
-
         Route::get('user', function () {
             return Inertia::render('User');
         })->name('DataUser');
@@ -64,8 +65,8 @@ require __DIR__ . '/auth.php';
 // API Routes (tetap sama)
 Route::get('api/produk', [ProdukController::class, 'index']);
 Route::post('api/produk', [ProdukController::class, 'store']);
-Route::put('api/produk/{produk}', [ProdukController::class, 'update']);
-Route::delete('api/produk/{produk}', [ProdukController::class, 'destroy']);
+Route::put('api/produk/{id}', [ProdukController::class, 'update']);
+Route::delete('api/produk/{id}', [ProdukController::class, 'destroy']);
 
 Route::get('api/kategori', [KategoriController::class, 'index']);
 Route::post('api/kategori', [KategoriController::class, 'store']);
@@ -76,8 +77,8 @@ Route::delete('api/kategori/{kategori}', [KategoriController::class, 'destroy'])
 Route::get('api/merek', [MerekController::class, 'index']);
 Route::post('api/merek', [MerekController::class, 'store']);
 Route::get('api/merek/{id}', [MerekController::class, 'show']);
-Route::put('api/merek/{merek}', [MerekController::class, 'update']);
-Route::delete('api/merek/{merek}', [MerekController::class, 'destroy']);
+Route::put('api/merek/{id}', [MerekController::class, 'update']);
+Route::delete('api/merek/{id}', [MerekController::class, 'destroy']);
 
 Route::get('api/transaksi', [TransaksiController::class, 'index']);
 Route::get('api/transaksi/{id}', [TransaksiController::class, 'show']);
@@ -88,8 +89,8 @@ Route::delete('api/transaksi/{id}', [TransaksiController::class, 'destroy']);
 Route::get('api/pelanggan', [PelangganController::class, 'index']);
 Route::post('api/pelanggan', [PelangganController::class, 'store']);
 Route::get('api/pelanggan/{id}', [PelangganController::class, 'show']);
-Route::put('api/pelanggan/{pelanggan}', [PelangganController::class, 'update']);
-Route::delete('api/pelanggan/{pelanggan}', [PelangganController::class, 'destroy']);
+Route::put('api/pelanggan/{id}', [PelangganController::class, 'update']);
+Route::delete('api/pelanggan/{id}', [PelangganController::class, 'destroy']);
 
 Route::get('api/user', [UserController::class, 'index']);
 Route::post('api/user', [UserController::class, 'store']);

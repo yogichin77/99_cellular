@@ -3,28 +3,27 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use App\Models\Produk;
+use App\Models\Kategori;
+use App\Models\Merek;
 
 class ProdukSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        DB::table('produks')->insert([
-            [
-                'nama_produk'   => 'Kopi Hitam',
-                'id_kategori'   => 1, // pastikan id_kategori ini ada
-                'id_merek'      => 1, // pastikan id_merek ini ada
-                'harga_modal'   => 50000,
-                'harga_jual'    => 100000,
-                'jumlah_stok'   => 50,
-                'gambar_produk' => 'https://via.placeholder.com/100',
-                'created_at'    => now(),
-                'updated_at'    => now(),
-            ],
-        ]);
+        $kategoriIds = Kategori::pluck('id')->all();
+        $merekIds = Merek::pluck('id')->all();
+
+        for ($i = 1; $i <= 10; $i++) {
+            Produk::create([
+                'nama_produk' => 'Produk ' . $i,
+                'id_kategori' => $kategoriIds[array_rand($kategoriIds)],
+                'id_merek' => $merekIds[array_rand($merekIds)],
+                'harga_modal' => rand(1000, 10000),
+                'harga_jual' => rand(11000, 20000),
+                'jumlah_stok' => rand(10, 100),
+                'gambar_produk' => null,
+            ]);
+        }
     }
 }

@@ -20,14 +20,14 @@ class TransaksiController extends Controller
     public function index()
     {
         // Ambil semua transaksi lengkap dengan relasi detail dan pelanggan
-        $transaksis = Transaksi::with(['detailtransaksis.produk', 'pelanggan','user'])->get();
+        $transaksis = Transaksi::with(['detailtransaksis.produk', 'pelanggan', 'user'])->get();
 
         return response()->json([
             'success' => true,
             'message' => 'Data transaksi berhasil diambil',
             'data' => $transaksis
         ]);
-    } 
+    }
 
     /**
      * Store a newly created transaction.
@@ -41,10 +41,10 @@ class TransaksiController extends Controller
                 'status_pembayaran' => 'required|in:cash,kredit',
                 'jatuh_tempo' => 'nullable|date|required_if:status_pembayaran,kredit',
                 'diskon' => 'nullable|numeric|min:0',
-                'id_pelanggan' => 'nullable|exists:pelanggans,id_pelanggan',
+                'id_pelanggan' => 'nullable|exists:pelanggans,id',
                 'id_user' => 'required|exists:users,id',
                 'items' => 'required|array|min:1',
-                'items.*.id_produk' => 'required|exists:produks,id_produk',
+                'items.*.id_produk' => 'required|exists:produks,id',
                 'items.*.jumlah' => 'required|integer|min:1',
             ]);
 
@@ -81,7 +81,7 @@ class TransaksiController extends Controller
                     // Create transaction detail
                     DetailTransaksi::create([
                         'id_transaksi' => $transaksi->id,
-                        'id_produk' => $produk->id_produk,
+                        'id_produk' => $produk->id,
                         'jumlah' => $item['jumlah'],
                         'harga_satuan' => $produk->harga_jual,
                         'total_harga' => $item['jumlah'] * $produk->harga_jual,
@@ -90,11 +90,15 @@ class TransaksiController extends Controller
 
                 return response()->json([
                     'message' => 'Transaksi berhasil dibuat',
-                    'data' => $transaksi->load('detailTransaksis.produk')
+                    'data' => $transaksi->load('detailtransaksis.produk')
                 ], 201);
             });
         } catch (\Exception $e) {
-            return $this->errorResponse('Gagal membuat transaksi', $e);
+            Log::error('Transaksi error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Server error',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
         }
     }
 
@@ -119,7 +123,7 @@ class TransaksiController extends Controller
     /**
      * Update the specified transaction.
      */
-        public function update(Request $request, Transaksi $transaksi)
+    public function update(Request $request, Transaksi $transaksi)
     {
         $validated = $request->validate([
             'sub_total_harga' => 'required|numeric',
@@ -127,64 +131,85 @@ class TransaksiController extends Controller
             'status_pembayaran' => 'required|in:cash,kredit',
             'jatuh_tempo' => 'nullable|date',
             'diskon' => 'required|numeric|min:0',
-            'id_pelanggan' => 'nullable|exists:pelanggans,id_pelanggan',
+            'id_pelanggan' => 'nullable|exists:pelanggans,id',
             'id_user' => 'required|exists:users,id',
             'items' => 'required|array|min:1',
-            'items.*.id_detail_transaksi' => 'nullable|integer', // ID detail transaksi, bisa null jika item baru
-            'items.*.id_produk' => 'required|exists:produks,id_produk',
+            'items.*.id_detail_transaksi' => 'nullable|integer',
+            'items.*.id_produk' => 'required|exists:produks,id',
             'items.*.jumlah' => 'required|integer|min:1',
-            'items.*.harga_satuan' => 'required|numeric|min:0', // Pastikan harga satuan dikirim dari frontend
+            'items.*.harga_satuan' => 'required|numeric|min:0',
         ]);
 
-        $transaksi->sub_total_harga = $validated['sub_total_harga'];
-        $transaksi->diskon = $validated['diskon'];
-        $transaksi->total_bayar = $validated['total_bayar'];
-        $transaksi->total_kurang = max(0, $validated['sub_total_harga'] - $validated['diskon'] - $validated['total_bayar']);
-        $transaksi->status_pembayaran = $validated['status_pembayaran'];
-        $transaksi->jatuh_tempo = $validated['jatuh_tempo'];
-        $transaksi->id_pelanggan = $validated['id_pelanggan'];
-        $transaksi->id_user = $validated['id_user'];
-        $transaksi->save();
+        return DB::transaction(function () use ($request, $transaksi, $validated) {
+            // Update transaction
+            $transaksi->update([
+                'sub_total_harga' => $validated['sub_total_harga'],
+                'total_bayar' => $validated['total_bayar'],
+                'total_kurang' => max(0, $validated['sub_total_harga'] - $validated['diskon'] - $validated['total_bayar']),
+                'status_pembayaran' => $validated['status_pembayaran'],
+                'jatuh_tempo' => $validated['jatuh_tempo'],
+                'diskon' => $validated['diskon'],
+                'id_pelanggan' => $validated['id_pelanggan'],
+                'id_user' => $validated['id_user'],
+            ]);
 
-        // Handle detail_transaksis
-        $existingDetailIds = $transaksi->detailTransaksis->pluck('id')->toArray();
-        $newDetailIds = [];
+            // Handle detail_transaksis
+            $existingDetailIds = $transaksi->detailTransaksis->pluck('id')->toArray();
+            $newDetailIds = [];
 
-        foreach ($validated['items'] as $itemData) {
-            if (isset($itemData['id_detail_transaksi']) && $itemData['id_detail_transaksi'] > 0) {
-                // Update existing detail
-                $detail = $transaksi->detailTransaksis->firstWhere('id', $itemData['id_detail_transaksi']);
-                if ($detail) {
-                    $detail->update([
+            foreach ($validated['items'] as $itemData) {
+                $produk = Produk::findOrFail($itemData['id_produk']);
+
+                if (isset($itemData['id_detail_transaksi'])) {
+                    // Update existing detail
+                    $detail = $transaksi->detailTransaksis->firstWhere('id', $itemData['id_detail_transaksi']);
+                    if ($detail) {
+                        // Kembalikan stok sebelumnya
+                        Produk::where('id', $detail->id_produk)
+                            ->increment('jumlah_stok', $detail->jumlah);
+
+                        // Update detail
+                        $detail->update([
+                            'id_produk' => $itemData['id_produk'],
+                            'jumlah' => $itemData['jumlah'],
+                            'harga_satuan' => $itemData['harga_satuan'],
+                            'total_harga' => $itemData['jumlah'] * $itemData['harga_satuan'],
+                        ]);
+
+                        // Kurangi stok baru
+                        $produk->decrement('jumlah_stok', $itemData['jumlah']);
+
+                        $newDetailIds[] = $detail->id;
+                    }
+                } else {
+                    // Create new detail
+                    $detail = $transaksi->detailTransaksis()->create([
                         'id_produk' => $itemData['id_produk'],
                         'jumlah' => $itemData['jumlah'],
                         'harga_satuan' => $itemData['harga_satuan'],
                         'total_harga' => $itemData['jumlah'] * $itemData['harga_satuan'],
                     ]);
+
+                    // Kurangi stok
+                    $produk->decrement('jumlah_stok', $itemData['jumlah']);
+
                     $newDetailIds[] = $detail->id;
                 }
-            } else {
-                // Create new detail
-                $detail = $transaksi->detailTransaksis()->create([
-                    'id_produk' => $itemData['id_produk'],
-                    'jumlah' => $itemData['jumlah'],
-                    'harga_satuan' => $itemData['harga_satuan'],
-                    'total_harga' => $itemData['jumlah'] * $itemData['harga_satuan'],
-                ]);
-                $newDetailIds[] = $detail->id;
             }
-        }
 
-        // Delete details that are no longer in the items list
-        $detailsToDelete = array_diff($existingDetailIds, $newDetailIds);
-        if (!empty($detailsToDelete)) {
-            $transaksi->detailTransaksis()->whereIn('id', $detailsToDelete)->delete();
-        }
+            // Delete details that are no longer in the items list
+            $detailsToDelete = array_diff($existingDetailIds, $newDetailIds);
+            if (!empty($detailsToDelete)) {
+                foreach ($transaksi->detailTransaksis()->whereIn('id', $detailsToDelete)->get() as $detail) {
+                    // Kembalikan stok sebelum dihapus
+                    Produk::where('id', $detail->id_produk)
+                        ->increment('jumlah_stok', $detail->jumlah);
+                }
+                $transaksi->detailTransaksis()->whereIn('id', $detailsToDelete)->delete();
+            }
 
-        // Load relations for the response
-        $transaksi->load(['pelanggan', 'user', 'detailTransaksis.produk']);
-
-        return response()->json($transaksi->refresh(), 200); // Return the updated transaction
+            return response()->json($transaksi->refresh()->load(['pelanggan', 'user', 'detailTransaksis.produk']), 200);
+        });
     }
 
 
@@ -206,7 +231,7 @@ class TransaksiController extends Controller
 
                 // Restore product stock
                 foreach ($transaksi->detailTransaksis as $detail) {
-                    Produk::where('id_produk', $detail->id_produk)
+                    Produk::where('id', $detail->id_produk)
                         ->increment('jumlah_stok', $detail->jumlah);
                 }
 

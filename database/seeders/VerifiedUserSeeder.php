@@ -15,9 +15,17 @@ class VerifiedUserSeeder extends Seeder
     public function run(): void
     {
         User::create([
+            'name' => 'Admin Terverifikasi',
+            'email' => 'admin@example.com',
+            'password' => Hash::make('12345678'),
+            'role' => 'admin',
+            'email_verified_at' => now(), // Verifikasi otomatis
+        ]);
+
+        User::create([
             'name' => 'Kasir Terverifikasi',
             'email' => 'kasir@example.com',
-            'password' => Hash::make('password'),
+            'password' => Hash::make('12345678'),
             'role' => 'kasir',
             'email_verified_at' => now(), // Verifikasi otomatis
         ]);
