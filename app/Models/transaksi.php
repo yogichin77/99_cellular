@@ -11,16 +11,10 @@ class Transaksi extends Model
 {
     use HasFactory;
 
-    protected $casts = [
-        'sub_total_harga' => 'integer',
-        'total_bayar' => 'integer',
-        'total_kurang' => 'integer',
-        'diskon' => 'integer',
-        'jatuh_tempo' => 'date',
-    ];
+
 
     protected $fillable = [
-        'sub_total_harga',
+        'sub_total_bayar',
         'total_bayar',
         'total_kurang',
         'status_pembayaran',
@@ -30,7 +24,7 @@ class Transaksi extends Model
         'id_user',
     ];
 
-    public function detailTransaksis()
+    public function detailtransaksis()
     {
         return $this->hasMany(DetailTransaksi::class, 'id_transaksi');
     }

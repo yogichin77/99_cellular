@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head ,usePage} from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Minus, Plus, Search, Trash2 } from 'lucide-vue-next'; // Import Plus and Minus icons
 import Swal from 'sweetalert2';
@@ -27,7 +27,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'Data Transaksi', href: '/datatr
 
 // Reactive state variables
 
-const transaksis = ref<TransaksiResponse[]>([]);
+
 const isLoading = ref(false);
 const searchTerm = ref('');
 const statusFilter = ref<string>('all');
@@ -37,11 +37,24 @@ const semuaProduk = ref<Produk[]>([]);
 const allPelanggans = ref<{ id_pelanggan: number; nama_pelanggan: string; nama_toko: string }[]>([]);
 const allUsers = ref<{ id: number; name: string }[]>([]);
 const sortConfig = ref({ key: 'id', direction: 'desc' });
-// Reactive variables for the update form
-const additionalPayment = ref(0); // Renamed from tambahanBayar for clarity
-const isEditModalOpen = ref(false); // Controls visibility of the edit modal
-const user = usePage().props.user as { id: number, name: string, role: string };
-// Interface for Product data
+const additionalPayment = ref(0);
+const isEditModalOpen = ref(false);
+const produks = ref<Produk[]>([]);
+const transaksis = ref<TransaksiResponse[]>([]);
+const items = ref<Item[]>([]);
+const diskon = ref(0);
+const totalBayar = ref(0);
+const selectedPelanggan = ref<number | null>(null);
+const statusPembayaran = ref<'cash' | 'kredit' | null>(null);
+const jatuhTempo = ref<string>('');
+
+const searchPelanggan = ref("");
+const openModalTambahPelanggan = ref(false);
+const loadingTambahPelanggan = ref(false);
+const showDetailModal = ref(false);
+const showPrintModal = ref(false);
+const currentTransaction = ref<TransaksiResponse | null>(null);
+
 interface Produk {
   id: number;
   nama_produk: string;
@@ -50,7 +63,7 @@ interface Produk {
 }
 
 
-interface DetailTransaksi {
+interface detailtransaksis {
   id?: number;
   id_produk: number;
   jumlah: number;
@@ -62,7 +75,7 @@ interface DetailTransaksi {
 
 interface TransaksiResponse {
   id: number;
-  sub_total_harga: number;
+  sub_total_bayar: number;
   diskon: number;
   total_bayar: number;
   total_kurang: number;
@@ -81,24 +94,28 @@ interface TransaksiResponse {
     nama_pelanggan: string;
     nama_toko: string;
   };
-  detail_transaksis: DetailTransaksi[]; // Match backend relationship name
+  detailtransaksis: Array<{  // Pastikan nama sesuai dengan relasi
+    id?: number;
+    id_produk: number;
+    jumlah: number;
+    harga_satuan: number;
+    total_harga: number;
+    produk: Produk;
+  }>;// Match backend relationship name
 }
 
 const fetchTransaksis = async () => {
   try {
     isLoading.value = true;
     const { data } = await axios.get('/api/transaksi');
-
-    // Normalize data structure
     transaksis.value = (data.data || data).map((t: any) => ({
       ...t,
-      // Ensure consistent naming
-      detail_transaksis: t.detailtransaksis || t.detail_transaksis || [],
+      detailtransaksis: t.detailtransaksis || [],
+      sub_total_harga: t.sub_total_harga, // Gunakan field yang benar
       created_at: t.created_at,
       jatuh_tempo: t.jatuh_tempo || null,
-      // Map user/pelanggan IDs
-      id_user: t.user?.id || t.id_user,
-      id_pelanggan: t.pelanggan?.id || t.id_pelanggan
+      id_user: t.user?.id,
+      id_pelanggan: t.pelanggan?.id
     })).sort((a: TransaksiResponse, b: TransaksiResponse) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
@@ -180,7 +197,7 @@ const selectTransactionForEdit = async (transaksi: TransaksiResponse) => {
     // Normalize data structure
     const clonedTransaksi: TransaksiResponse = {
       ...transaksi,
-      detail_transaksis: (transaksi.detail_transaksis || transaksi.detail_transaksis || []).map(item => {
+      detailtransaksis: (transaksi.detailtransaksis || transaksi.detailtransaksis || []).map(item => {
         const masterProduk = semuaProduk.value.find(p => p.id === item.id_produk);
         return {
           ...item,
@@ -224,8 +241,8 @@ const selectTransactionForEdit = async (transaksi: TransaksiResponse) => {
  */
 const computedSubTotalHarga = computed(() => {
   if (!selectedTransaksi.value) return 0;
-  return selectedTransaksi.value.detail_transaksis.reduce(
-    (sum: number, item: DetailTransaksi) => sum + (item.total_harga || (item.jumlah * item.harga_satuan)), 0
+  return selectedTransaksi.value.detailtransaksis.reduce(
+    (sum: number, item: detailtransaksis) => sum + (item.total_harga || (item.jumlah * item.harga_satuan)), 0
   );
 });
 
@@ -287,39 +304,26 @@ const updateTransaction = async () => {
   if (!selectedTransaksi.value) return;
 
   try {
-    const id = selectedTransaksi.value.id;
-    const sub_total_harga = computedSubTotalHarga.value;
-    const total_kurang = sisaTagihan.value;
-
-    // Validate payment status
-    if (selectedTransaksi.value.status_pembayaran === 'cash' && total_kurang > 0) {
-      throw new Error('Transaksi tidak dapat berstatus cash jika masih ada sisa tagihan.');
-    }
-
-    // Construct payload matching backend expectations
     const payload = {
-      sub_total_harga: sub_total_harga,
+      // Gunakan field yang sesuai dengan backend
+      sub_total_harga: computedSubTotalHarga.value,
       total_bayar: currentPaidAmount.value,
-      total_kurang: total_kurang,
+      total_kurang: sisaTagihan.value,
       status_pembayaran: selectedTransaksi.value.status_pembayaran,
       jatuh_tempo: selectedTransaksi.value.status_pembayaran === 'kredit'
         ? selectedTransaksi.value.jatuh_tempo
         : null,
       diskon: selectedTransaksi.value.diskon || 0,
-      id_pelanggan: selectedTransaksi.value.pelanggan?.id || selectedTransaksi.value.id_pelanggan || null,
-      id_user: selectedTransaksi.value.user?.id || selectedTransaksi.value.id_user,
-      items: selectedTransaksi.value.detail_transaksis.map(item => ({
-        id_detail_transaksi: item.id || null,
+      id_pelanggan: selectedTransaksi.value.id_pelanggan || null,
+      id_user: selectedTransaksi.value.id_user,
+      items: selectedTransaksi.value.detailtransaksis.map(item => ({
+        id_detail_transaksi: item.id || null, // ID null untuk item baru
         id_produk: item.id_produk,
         jumlah: item.jumlah,
-        harga_satuan: item.harga_satuan,
+        harga_satuan: item.harga_satuan
       }))
     };
-    if (!payload.id_user) {
-      throw new Error('Kasir harus dipilih');
-    }
-
-    await axios.put(`/api/transaksi/${id}`, payload);
+    await axios.put(`/api/transaksi/{id}`, payload);
 
     Swal.fire({
       icon: 'success',
@@ -537,9 +541,9 @@ const produkBaru = ref<{ id: number | null; jumlah: number }>({
  * @param index The index of the detail item in the array.
  */
 const kurangiJumlah = (index: number) => {
-  if (!selectedTransaksi.value?.detail_transaksis?.[index]) return;
+  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
 
-  const item = selectedTransaksi.value.detail_transaksis[index];
+  const item = selectedTransaksi.value.detailtransaksis[index];
   if (item.jumlah > 1) {
     item.jumlah--;
     item.total_harga = item.jumlah * item.harga_satuan;
@@ -552,17 +556,20 @@ const kurangiJumlah = (index: number) => {
  * @param index 
  */
 const tambahJumlah = (index: number) => {
-  if (!selectedTransaksi.value?.detail_transaksis?.[index]) return;
-
-  const item = selectedTransaksi.value.detail_transaksis[index];
+  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
+  const totalInTransaction = selectedTransaksi.value.detailtransaksis
+    .filter(d => d.id_produk === item.id_produk)
+    .reduce((sum, d) => sum + d.jumlah, 0);
+  const item = selectedTransaksi.value.detailtransaksis[index];
   const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
+  
   if (!produkMaster) {
     Swal.fire({ icon: 'error', title: 'Error', text: 'Produk tidak ditemukan di daftar master.' });
     return;
   }
 
 
-  const currentProductInTransactionCount = selectedTransaksi.value.detail_transaksis.reduce((sum, detail) => {
+  const currentProductInTransactionCount = selectedTransaksi.value.detailtransaksis.reduce((sum, detail) => {
     if (detail.id === item.produk.id) {
       return sum + detail.jumlah;
     }
@@ -587,8 +594,8 @@ const tambahJumlah = (index: number) => {
  * @param index The index of the detail item to remove.
  */
 const hapusProduk = (index: number) => {
-  if (selectedTransaksi.value?.detail_transaksis) {
-    selectedTransaksi.value.detail_transaksis.splice(index, 1);
+  if (selectedTransaksi.value?.detailtransaksis) {
+    selectedTransaksi.value.detailtransaksis.splice(index, 1);
   }
 };
 
@@ -616,7 +623,7 @@ const tambahProdukBaru = () => {
   }
 
   // Calculate total quantity of this product already in the transaction
-  const totalExistingJumlah = selectedTransaksi.value.detail_transaksis
+  const totalExistingJumlah = selectedTransaksi.value.detailtransaksis
     .filter(d => d.id === produkId)
     .reduce((sum, d) => sum + d.jumlah, 0);
 
@@ -633,7 +640,7 @@ const tambahProdukBaru = () => {
   }
 
   // Check if the product already exists in the transaction details
-  const existingDetail = selectedTransaksi.value.detail_transaksis.find(
+  const existingDetail = selectedTransaksi.value.detailtransaksis.find(
     item => item.id === produkId
   );
 
@@ -643,7 +650,7 @@ const tambahProdukBaru = () => {
     existingDetail.total_harga = existingDetail.jumlah * existingDetail.harga_satuan;
   } else {
     // Product is new, add it as a new detail item
-    selectedTransaksi.value.detail_transaksis.push({
+    selectedTransaksi.value.detailtransaksis.push({
       id_produk: produkMaster.id, // Gunakan id_produk
       jumlah: produkBaru.value.jumlah,
       harga_satuan: produkMaster.harga_jual,
@@ -686,16 +693,16 @@ const validateAdditionalPayment = () => {
  * @param index 
  */
 const updateHargaProduk = (index: number) => {
-  if (!selectedTransaksi.value?.detail_transaksis?.[index]) return;
+  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
 
-  const item = selectedTransaksi.value.detail_transaksis[index];
+  const item = selectedTransaksi.value.detailtransaksis[index];
   const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
   if (!produkMaster) return;
 
   if (item.jumlah < 1) item.jumlah = 1;
 
 
-  const totalQuantityForThisProduct = selectedTransaksi.value.detail_transaksis.reduce((sum, detail) => {
+  const totalQuantityForThisProduct = selectedTransaksi.value.detailtransaksis.reduce((sum, detail) => {
     if (detail.id === item.produk.id) {
       return sum + detail.jumlah;
     }
@@ -782,7 +789,7 @@ const updateHargaProduk = (index: number) => {
                     <span class="text-xs text-gray-500">({{ transaksi.pelanggan?.nama_toko || '-' }})</span>
                   </TableCell>
                   <TableCell>{{ transaksi.user?.name || '-' }}</TableCell>
-                  <TableCell>{{ formatCurrency(transaksi.sub_total_harga) }}</TableCell>
+                  <TableCell>{{ formatCurrency(transaksi.sub_total_bayar) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.diskon) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.total_bayar) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.total_kurang) }}</TableCell>
@@ -888,7 +895,7 @@ const updateHargaProduk = (index: number) => {
                 <p class="font-semibold text-lg">Sub Total: {{ formatCurrency(computedSubTotalHarga) }}</p>
                 <p class="font-semibold text-lg">Total Tagihan (Setelah Diskon): {{ formatCurrency(totalTagihan) }}</p>
                 <p class="font-bold text-xl text-red-600 dark:text-red-400">Sisa Tagihan: {{ formatCurrency(sisaTagihan)
-                }}</p>
+                  }}</p>
               </div>
             </div>
 
@@ -918,8 +925,8 @@ const updateHargaProduk = (index: number) => {
                 </div>
               </div>
 
-              <div v-if="selectedTransaksi.detail_transaksis.length > 0" class="space-y-3 max-h-60 overflow-y-auto">
-                <div v-for="(item, index) in selectedTransaksi.detail_transaksis" :key="item.id || `new-${index}`"
+              <div v-if="selectedTransaksi.detailtransaksis.length > 0" class="space-y-3 max-h-60 overflow-y-auto">
+                <div v-for="(item, index) in selectedTransaksi.detailtransaksis" :key="item.id || `new-${index}`"
                   class="border p-2 rounded-md flex items-center gap-3">
                   <div class="flex-grow">
                     <p class="font-semibold">{{ item.produk.nama_produk }}</p>
@@ -956,7 +963,3 @@ const updateHargaProduk = (index: number) => {
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-/* Add any specific styles here if needed */
-</style>

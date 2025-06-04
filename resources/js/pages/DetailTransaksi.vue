@@ -56,7 +56,7 @@
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="item in transaction.detail_transaksis" :key="item.id">
+              <TableRow v-for="item in transaction.detailtransaksis" :key="item.id">
                 <TableCell>{{ item.produk.nama_produk }}</TableCell>
                 <TableCell class="text-right">{{ formatCurrency(item.harga_satuan) }}</TableCell>
                 <TableCell class="text-center">{{ item.jumlah }}</TableCell>
@@ -70,14 +70,14 @@
         <div class="space-y-2">
           <div class="flex justify-between">
             <Label>Subtotal:</Label>
-            <span>{{ formatCurrency(transaction.sub_total_harga) }}</span>
+            <span>{{ formatCurrency(transaction.sub_total_bayar) }}</span>
           </div>
           <div class="flex justify-between">
             <Label>Diskon:</Label>
             <span>-{{ formatCurrency(transaction.diskon) }}</span>
           </div>
           <div class="flex justify-between font-semibold">
-            <Label>Total Bayar:</Label>
+            <Label>Total Pembayaran:</Label>
             <span>{{ formatCurrency(transaction.total_bayar) }}</span>
           </div>
           <div v-if="transaction.status_pembayaran === 'kredit'" class="flex justify-between text-red-600">

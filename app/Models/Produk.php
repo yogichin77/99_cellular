@@ -33,7 +33,7 @@ class Produk extends Model
     }
 
     // Relasi ke detail transaksi
-    public function detailTransaksis()
+    public function detailtransaksis()
     {
         return $this->hasMany(DetailTransaksi::class, 'id_produk');
     }

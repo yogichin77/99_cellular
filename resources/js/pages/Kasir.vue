@@ -50,7 +50,7 @@ interface ItemTransaksi {
 
 interface TransaksiResponse {
     id: number;
-    sub_total_harga: number;
+    sub_total_bayar: number;
     diskon: number;
     total_bayar: number;
     total_kurang: number;
@@ -67,7 +67,7 @@ interface TransaksiResponse {
         nama_pelanggan: string;
         nama_toko: string;
     };
-    detail_transaksis?: Array<{
+    detailtransaksis?: Array<{
         id: number;
         jumlah: number;
         harga_satuan: number;
@@ -81,15 +81,24 @@ interface TransaksiResponse {
 
 window.addEventListener('online', async () => {
     const offlineData = await getAllOfflineTransaksis();
-
     for (const transaksi of offlineData) {
         try {
-            await axios.post('/api/transaksi', transaksi);
+            // Hanya kirim payload yang diperlukan
+            const payload = {
+                sub_total_bayar: transaksi.subtotal,
+                diskon: transaksi.diskon,
+                total_bayar: transaksi.total_bayar,
+                status_pembayaran: transaksi.status_pembayaran,
+                jatuh_tempo: transaksi.jatuh_tempo,
+                id_pelanggan: transaksi.id_pelanggan,
+                id_user: transaksi.id_user,
+                items: transaksi.items
+            };
+            await axios.post('/api/transaksi', payload);
         } catch (e) {
-            console.error('Gagal sinkronisasi transaksi offline:', e);
+            console.error('Gagal sinkronisasi:', e);
         }
     }
-
     await clearOfflineTransaksis();
 });
 
@@ -249,213 +258,221 @@ const fetchPelanggan = async () => {
 };
 
 const fetchProduk = async () => {
-        try {
-            const { data } = await axios.get('/api/produk');
-            produks.value = data.data.map((p: Produk) => ({
-                ...p,
-                qty: 1,
-                harga_jual: Number(p.harga_jual)
-            }));
-        } catch (error) {
-            console.error('Error fetching produk:', error);
-            throw error;
-        }
-    };
+    try {
+        const { data } = await axios.get('/api/produk');
+        produks.value = data.data.map((p: Produk) => ({
+            ...p,
+            qty: 1,
+            harga_jual: Number(p.harga_jual)
+        }));
+    } catch (error) {
+        console.error('Error fetching produk:', error);
+        throw error;
+    }
+};
 
-    const fetchTransaksis = async () => {
-        try {
-            const { data } = await axios.get('/api/transaksi');
-            transaksis.value = data.data
-                .map((t: TransaksiResponse) => ({
-                    ...t,
-                    created_at: t.created_at
-                }))
-                .sort((a: TransaksiResponse, b: TransaksiResponse) =>
-                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                );
-        } catch (error) {
-            console.error('Error fetching transaksi:', error);
-            Swal.fire('Error', 'Gagal memuat riwayat transaksi', 'error');
-        }
-    };
+const fetchTransaksis = async () => {
+    try {
+        const { data } = await axios.get('/api/transaksi');
+        transaksis.value = data.data
+            .map((t: TransaksiResponse) => ({
+                ...t,
+                created_at: t.created_at
+            }))
+            .sort((a: TransaksiResponse, b: TransaksiResponse) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+    } catch (error) {
+        console.error('Error fetching transaksi:', error);
+        Swal.fire('Error', 'Gagal memuat riwayat transaksi', 'error');
+    }
+};
 
-    // Transaction Functions
-    const addItem = (produk: Produk) => {
-        if (!produk.qty || produk.qty < 1) {
-            Swal.fire('Peringatan', 'Masukkan jumlah yang valid', 'warning');
+// Transaction Functions
+const addItem = (produk: Produk) => {
+    if (!produk.qty || produk.qty < 1) {
+        Swal.fire('Peringatan', 'Masukkan jumlah yang valid', 'warning');
+        return;
+    }
+
+    const stokTersedia = produk.jumlah_stok;
+    const existingItemIndex = items.value.findIndex(item => item.id === produk.id);
+
+    if (existingItemIndex >= 0) {
+        const newQty = items.value[existingItemIndex].jumlah + produk.qty;
+        if (newQty > stokTersedia) {
+            Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
+            return;
+        }
+        items.value[existingItemIndex].jumlah = newQty;
+        items.value[existingItemIndex].total_harga = newQty * items.value[existingItemIndex].harga_satuan;
+    } else {
+        if (produk.qty > stokTersedia) {
+            Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
+            return;
+        }
+        items.value.push({
+            id: produk.id,
+            nama_produk: produk.nama_produk,
+            harga_satuan: produk.harga_jual,
+            jumlah: produk.qty,
+            total_harga: produk.harga_jual * produk.qty,
+            stok: produk.jumlah_stok,
+        });
+    }
+    produk.qty = 1;
+};
+
+const removeItem = (index: number) => {
+    items.value.splice(index, 1);
+};
+
+const resetForm = () => {
+    if (items.value.length > 0) {
+        Swal.fire({
+            title: 'Reset Transaksi?',
+            text: 'Semua item akan dihapus',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Reset',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                doResetForm();
+            }
+        });
+    } else {
+        doResetForm();
+    }
+};
+
+const doResetForm = () => {
+    items.value = [];
+    diskon.value = 0;
+    totalBayar.value = 0;
+    selectedPelanggan.value = null;
+    statusPembayaran.value = null;
+    jatuhTempo.value = '';
+    produks.value.forEach(p => p.qty = 1);
+};
+
+watch(selectedPelanggan, newVal => {
+    if (newVal === null && statusPembayaran.value === 'kredit') {
+        statusPembayaran.value = null;
+        jatuhTempo.value = '';
+    }
+});
+
+const validateTransaction = () => {
+    if (items.value.length === 0) {
+        Swal.fire('Error', 'Tambahkan minimal 1 produk', 'error');
+        return false;
+    }
+
+    if (!statusPembayaran.value) {
+        Swal.fire('Error', 'Pilih status pembayaran', 'error');
+        return false;
+    }
+    if (statusPembayaran.value === 'kredit' && selectedPelanggan.value === null) {
+        Swal.fire('Error', 'Pelanggan umum tidak dapat menggunakan status pembayaran kredit', 'error');
+        return false;
+    }
+    const totalTagihan = totalSetelahDiskon.value;
+
+    if (statusPembayaran.value === 'kredit') {
+        if (!jatuhTempo.value) {
+            Swal.fire('Error', 'Isi tanggal jatuh tempo', 'error');
+            return false;
+        }
+        if (selectedPelanggan.value === null) {
+            Swal.fire('Error', 'Pilih pelanggan untuk transaksi kredit', 'error');
+            return false;
+        }
+        if (totalBayar.value >= totalTagihan) {
+            Swal.fire('Error', 'Untuk kredit, jumlah bayar harus kurang dari total', 'error');
+            return false;
+        }
+    } else {
+        if (totalBayar.value < totalTagihan) {
+            Swal.fire('Error', 'Jumlah bayar tidak mencukupi', 'error');
+            return false;
+        }
+    }
+    return true;
+};
+
+const prosesTransaksi = async () => {
+    if (!validateTransaction()) return;
+    isLoading.value = true;
+    try {
+        const payload = {
+            sub_total_bayar: subtotal.value,
+            diskon: diskon.value,
+            total_bayar: totalBayar.value,
+            status_pembayaran: statusPembayaran.value,
+            jatuh_tempo: statusPembayaran.value === 'kredit'
+                ? new Date(jatuhTempo.value).toISOString().split('T')[0]
+                : null,
+            id_pelanggan: selectedPelanggan.value || null,
+            id_user: user.id,
+            items: items.value.map(item => ({
+                id_produk: item.id,
+                jumlah: item.jumlah,
+                total_harga: item.total_harga,
+            }))
+        };
+
+        // Jika offline, simpan ke IndexedDB
+        if (!navigator.onLine) {
+            await saveOfflineTransaksi(payload);
+            Swal.fire({
+                title: 'Offline Mode',
+                text: 'Transaksi disimpan secara offline dan akan dikirim saat online.',
+                icon: 'info',
+                confirmButtonText: 'OK'
+            });
+            resetForm();
             return;
         }
 
-        const stokTersedia = produk.jumlah_stok;
-        const existingItemIndex = items.value.findIndex(item => item.id === produk.id);
+        // Jika online, langsung kirim ke API
+        console.log("Payload:", JSON.stringify(payload, null, 2));
+        const { data } = await axios.post('/api/transaksi', payload);
+        currentTransaction.value = data.data;
 
-        if (existingItemIndex >= 0) {
-            const newQty = items.value[existingItemIndex].jumlah + produk.qty;
-            if (newQty > stokTersedia) {
-                Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
-                return;
-            }
-            items.value[existingItemIndex].jumlah = newQty;
-            items.value[existingItemIndex].total_harga = newQty * items.value[existingItemIndex].harga_satuan;
-        } else {
-            if (produk.qty > stokTersedia) {
-                Swal.fire('Stok Tidak Cukup', `Stok tersisa hanya ${stokTersedia}`, 'warning');
-                return;
-            }
-            items.value.push({
-                id: produk.id,
-                nama_produk: produk.nama_produk,
-                harga_satuan: produk.harga_jual,
-                jumlah: produk.qty,
-                total_harga: produk.harga_jual * produk.qty,
-                stok: produk.jumlah_stok,
-                harga_beli: produk.harga_beli
-            });
-        }
-        produk.qty = 1;
-    };
+        // Cetak struk
+        await nextTick();
+        handlePrint(data.data);
+        resetForm();
+        await Swal.fire({
+            title: 'Transaksi Berhasil!',
+            html: `No. Transaksi: <b>#${data.data.id}</b>`,
+            icon: 'success',
+            timer: 1000,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            didClose: () => handlePrint(data.data)
+        });
 
-    const removeItem = (index: number) => {
-        items.value.splice(index, 1);
-    };
 
-    const resetForm = () => {
-        if (items.value.length > 0) {
-            Swal.fire({
-                title: 'Reset Transaksi?',
-                text: 'Semua item akan dihapus',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, Reset',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    doResetForm();
-                }
-            });
-        } else {
-            doResetForm();
-        }
-    };
+        await fetchProduk();
+        await fetchTransaksis();
 
-    const doResetForm = () => {
-        items.value = [];
-        diskon.value = 0;
-        totalBayar.value = 0;
-        selectedPelanggan.value = null;
-        statusPembayaran.value = null;
-        jatuhTempo.value = '';
-        produks.value.forEach(p => p.qty = 1);
-    };
+    } catch (error: any) {
+        const errorMessage = error.response?.data?.message ||
+            Object.values(error.response?.data?.errors || {}).flat().join('\n') ||
+            'Terjadi kesalahan saat memproses transaksi';
 
-    watch(selectedPelanggan, newVal => {
-        if (newVal === null && statusPembayaran.value === 'kredit') {
-            statusPembayaran.value = null;
-            jatuhTempo.value = '';
-        }
-    });
-
-    const validateTransaction = () => {
-        if (items.value.length === 0) {
-            Swal.fire('Error', 'Tambahkan minimal 1 produk', 'error');
-            return false;
-        }
-
-        if (!statusPembayaran.value) {
-            Swal.fire('Error', 'Pilih status pembayaran', 'error');
-            return false;
-        }
-        if (statusPembayaran.value === 'kredit' && selectedPelanggan.value === null) {
-            Swal.fire('Error', 'Pelanggan umum tidak dapat menggunakan status pembayaran kredit', 'error');
-            return false;
-        }
-        const totalTagihan = totalSetelahDiskon.value;
-
-        if (statusPembayaran.value === 'kredit') {
-            if (!jatuhTempo.value) {
-                Swal.fire('Error', 'Isi tanggal jatuh tempo', 'error');
-                return false;
-            }
-            if (totalBayar.value >= totalTagihan) {
-                Swal.fire('Error', 'Untuk kredit, jumlah bayar harus kurang dari total', 'error');
-                return false;
-            }
-        } else {
-            if (totalBayar.value < totalTagihan) {
-                Swal.fire('Error', 'Jumlah bayar tidak mencukupi', 'error');
-                return false;
-            }
-        }
-        return true;
-    };
-
-    const prosesTransaksi = async () => {
-        if (!validateTransaction()) return;
-        isLoading.value = true;
-        try {
-            const payload = {
-                sub_total_harga: subtotal.value,
-                diskon: diskon.value,
-                total_bayar: totalBayar.value,
-                status_pembayaran: statusPembayaran.value,
-                jatuh_tempo: statusPembayaran.value === 'kredit' ? jatuhTempo.value : null,
-                id_pelanggan: selectedPelanggan.value,
-                id_user: user.id,
-                items: items.value.map(item => ({
-                    id_produk: item.id,
-                    jumlah: item.jumlah,
-
-                }))
-            };
-
-            // Jika offline, simpan ke IndexedDB
-            if (!navigator.onLine) {
-                await saveOfflineTransaksi(payload);
-                Swal.fire({
-                    title: 'Offline Mode',
-                    text: 'Transaksi disimpan secara offline dan akan dikirim saat online.',
-                    icon: 'info',
-                    confirmButtonText: 'OK'
-                });
-                resetForm();
-                return;
-            }
-
-            // Jika online, langsung kirim ke API
-            console.log("Payload:", JSON.stringify(payload, null, 2));
-            const { data } = await axios.post('/api/transaksi', payload);
-
-            currentTransaction.value = data.data;
-
-            await Swal.fire({
-                title: 'Transaksi Berhasil!',
-                html: `No. Transaksi: <b>#${data.data.id}</b>`,
-                icon: 'success',
-                timer: 1000,
-                showConfirmButton: false,
-                allowOutsideClick: false,
-                didClose: () => handlePrint(data.data)
-            });
-
-            resetForm();
-            await fetchProduk();
-            await fetchTransaksis();
-
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message ||
-                error.response?.data?.errors?.join('\n') ||
-                'Terjadi kesalahan saat memproses transaksi';
-
-            Swal.fire({
-                title: 'Error!',
-                text: errorMessage,
-                icon: 'error',
-                confirmButtonText: 'OK'
-            });
-        } finally {
-            isLoading.value = false;
-        }
-    };
+        Swal.fire({
+            title: 'Error!',
+            text: errorMessage,
+            icon: 'error',
+            confirmButtonText: 'OK'
+        });
+    } finally {
+        isLoading.value = false;
+    }
+};
 </script>
 
 
@@ -847,7 +864,7 @@ const fetchProduk = async () => {
                                             <TableCell
                                                 class="py-1 sm:py-2 align-middle whitespace-nowrap text-xs sm:text-sm">
                                                 <div class="font-semibold">
-                                                    {{ formatCurrency(transaksi.sub_total_harga) }}
+                                                    {{ formatCurrency(transaksi.sub_total_bayar) }}
                                                 </div>
                                             </TableCell>
                                             <TableCell class="py-1 sm:py-2 align-middle whitespace-nowrap">

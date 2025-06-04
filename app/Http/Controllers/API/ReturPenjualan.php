@@ -21,7 +21,7 @@
                 'id_transaksi' => 'required|exists:transaksis,id',
                 'alasan' => 'required|string|max:255',
                 'items' => 'required|array|min:1',
-                'items.*.id_detail_transaksi' => 'required|exists:detail_transaksis,id',
+                'items.*.id_detail_transaksi' => 'required|exists:detailtransaksis,id',
                 'items.*.jumlah' => 'required|integer|min:1',
             ]);
 

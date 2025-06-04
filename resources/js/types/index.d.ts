@@ -41,7 +41,7 @@ export type BreadcrumbItemType = BreadcrumbItem;
 
 export interface TransaksiResponse {
   id: number;
-  sub_total_harga: number;
+  sub_total_bayar: number;
   diskon: number;
   total_bayar: number;
   total_kurang: number;
@@ -58,7 +58,7 @@ export interface TransaksiResponse {
     nama_pelanggan: string;
     nama_toko: string;
   };
-  detail_transaksis?: Array<{
+  detailtransaksis?: Array<{
     id: number;
     jumlah: number;
     harga_satuan: number;

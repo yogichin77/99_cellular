@@ -46,8 +46,8 @@
             <div class="col-span-2 text-right">Total</div>
           </div>
 
-          <template v-if="transaction?.detail_transaksis?.length">
-            <div v-for="item in transaction.detail_transaksis" :key="item.id"
+          <template v-if="transaction?.detailtransaksis?.length">
+            <div v-for="item in transaction.detailtransaksis" :key="item.id"
               class="grid grid-cols-12 gap-1 py-1 text-xs border-b border-dashed">
               <div class="col-span-6">{{ item.produk.nama_produk }}</div>
               <div class="col-span-2 text-right">{{ formatCurrency(item.harga_satuan) }}</div>
@@ -60,15 +60,15 @@
         <!-- Ringkasan Pembayaran -->
         <div class="space-y-2 text-xs">
           <div class="flex justify-between">
-            <span class="font-medium">Subtotal:</span>
-            <span>{{ formatCurrency(transaction?.sub_total_harga) }}</span>
+            <span class="font-medium">Sub total:</span>
+            <span>{{ formatCurrency(transaction?.sub_total_bayar) }}</span>
           </div>
           <div class="flex justify-between">
             <span class="font-medium">Diskon:</span>
             <span>-{{ formatCurrency(transaction?.diskon) }}</span>
           </div>
           <div class="flex justify-between font-bold border-t pt-2">
-            <span>Total Bayar:</span>
+            <span>Total Pembayaran:</span>
             <span>{{ formatCurrency(transaction?.total_bayar) }}</span>
           </div>
           <div v-if="transaction?.status_pembayaran === 'kredit'" class="flex justify-between text-red-600">
