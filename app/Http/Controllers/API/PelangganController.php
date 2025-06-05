@@ -76,7 +76,7 @@ class PelangganController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'nama_pelanggan' => 'required|string|max:255|unique:pelanggans,nama_pelanggan,' . $id . ',id_pelanggan',
+            'nama_pelanggan' => 'required|string|max:255|unique:pelanggans,nama_pelanggan,' . $id ,
         ]);
 
         if ($validator->fails()) {
@@ -98,7 +98,7 @@ class PelangganController extends Controller
 
     public function destroy(string $id)
     {
-        $pelanggan = Pelanggan::find( $id)->first();
+        $pelanggan = Pelanggan::find( $id);
 
         if (!$pelanggan) {
             return response()->json([

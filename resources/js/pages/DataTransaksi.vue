@@ -1,727 +1,337 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Import Label component
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Minus, Plus, Search, Trash2 } from 'lucide-vue-next'; // Import Plus and Minus icons
+import { Minus, Plus, Search, Trash2, Pencil } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, onMounted, ref, watch } from 'vue';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Breadcrumbs for navigation
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Data Transaksi', href: '/datatransaksi' }];
+// Breadcrumbs
+const breadcrumbs: BreadcrumbItem[] = [
+  {
+    title: 'Datatransaksi',
+    href: 'datatransaksi',
+  },
+];
 
-// Reactive state variables
-
-
+// State untuk data transaksi
+const transaksis = ref<any[]>([]);
 const isLoading = ref(false);
 const searchTerm = ref('');
-const statusFilter = ref<string>('all');
-const dateRange = ref({ start: '', end: '' });
-const selectedTransaksi = ref<TransaksiResponse | null>(null);
-const semuaProduk = ref<Produk[]>([]);
-const allPelanggans = ref<{ id_pelanggan: number; nama_pelanggan: string; nama_toko: string }[]>([]);
-const allUsers = ref<{ id: number; name: string }[]>([]);
-const sortConfig = ref({ key: 'id', direction: 'desc' });
+const statusFilter = ref('all');
+const dateRange = ref({
+  start: '',
+  end: ''
+});
+
+// State untuk form edit
+const selectedTransaksi = ref<any>(null);
 const additionalPayment = ref(0);
-const isEditModalOpen = ref(false);
-const produks = ref<Produk[]>([]);
-const transaksis = ref<TransaksiResponse[]>([]);
-const items = ref<Item[]>([]);
-const diskon = ref(0);
-const totalBayar = ref(0);
-const selectedPelanggan = ref<number | null>(null);
-const statusPembayaran = ref<'cash' | 'kredit' | null>(null);
-const jatuhTempo = ref<string>('');
+const semuaProduk = ref<any[]>([]);
+const produkBaru = ref({
+  id: '',
+  jumlah: 1
+});
+const isEditDialogOpen = ref(false);
+const isLoadingDetail = ref(false);
 
-const searchPelanggan = ref("");
-const openModalTambahPelanggan = ref(false);
-const loadingTambahPelanggan = ref(false);
-const showDetailModal = ref(false);
-const showPrintModal = ref(false);
-const currentTransaction = ref<TransaksiResponse | null>(null);
-
-interface Produk {
-  id: number;
-  nama_produk: string;
-  harga_jual: number;
-  jumlah_stok: number;
-}
-
-
-interface detailtransaksis {
-  id?: number;
-  id_produk: number;
-  jumlah: number;
-  harga_satuan: number;
-  total_harga: number;
-  produk: Produk;
-}
-
-
-interface TransaksiResponse {
-  id: number;
-  sub_total_bayar: number;
-  diskon: number;
-  total_bayar: number;
-  total_kurang: number;
-  status_pembayaran: 'cash' | 'kredit';
-  jatuh_tempo?: string | null;
-  created_at: string;
-  updated_at: string;
-  id_user?: number;
-  id_pelanggan?: number | null;
-  user?: {
-    id: number;
-    name: string;
-  };
-  pelanggan?: {
-    id: number;
-    nama_pelanggan: string;
-    nama_toko: string;
-  };
-  detailtransaksis: Array<{  // Pastikan nama sesuai dengan relasi
-    id?: number;
-    id_produk: number;
-    jumlah: number;
-    harga_satuan: number;
-    total_harga: number;
-    produk: Produk;
-  }>;// Match backend relationship name
-}
-
+// Fetch data transaksi
 const fetchTransaksis = async () => {
   try {
     isLoading.value = true;
-    const { data } = await axios.get('/api/transaksi');
-    transaksis.value = (data.data || data).map((t: any) => ({
-      ...t,
-      detailtransaksis: t.detailtransaksis || [],
-      sub_total_harga: t.sub_total_harga, // Gunakan field yang benar
-      created_at: t.created_at,
-      jatuh_tempo: t.jatuh_tempo || null,
-      id_user: t.user?.id,
-      id_pelanggan: t.pelanggan?.id
-    })).sort((a: TransaksiResponse, b: TransaksiResponse) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-  } catch (error: unknown) {
-    let errorMessage = 'Gagal memuat data transaksi';
-    if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.message || error.message;
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    console.error('Error fetching transaksi:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Gagal',
-      text: errorMessage,
+    const response = await axios.get('/api/transaksi', {
+      params: {
+        search: searchTerm.value,
+        status: statusFilter.value === 'all' ? null : statusFilter.value,
+        start_date: dateRange.value.start,
+        end_date: dateRange.value.end
+      }
     });
+    transaksis.value = response.data.data;
+  } catch (error) {
+    console.error('Gagal memuat transaksi:', error);
+    Swal.fire('Error', 'Gagal memuat data transaksi', 'error');
   } finally {
     isLoading.value = false;
   }
 };
 
-/**
- * Fetches all products from the API.
- */
-const fetchProduk = async () => {
+// Fetch semua produk
+const fetchSemuaProduk = async () => {
   try {
-    const { data } = await axios.get('/api/produk');
-    semuaProduk.value = data.data;
-  } catch (error: unknown) {
-    let errorMessage = 'Gagal memuat data produk';
-    if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.message || error.message;
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    console.error('Error fetching produk:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Gagal',
-      text: errorMessage,
-    });
+    const response = await axios.get('/api/produk');
+    semuaProduk.value = response.data.data;
+  } catch (error) {
+    console.error('Gagal memuat produk:', error);
   }
 };
 
-/**
- * Fetches all customers from the API.
- */
-const fetchPelanggans = async () => {
-  try {
-    const { data } = await axios.get('/api/pelanggan'); // Assuming you have a /api/pelanggan endpoint
-    allPelanggans.value = data.data;
-  } catch (error: unknown) {
-    console.error('Error fetching pelanggans:', error);
-    // Handle error appropriately
-  }
+// Format tanggal dan mata uang
+const formatDate = (dateString: string) => {
+  if (!dateString) return '-';
+  return new Date(dateString).toLocaleDateString('id-ID');
 };
 
-/**
- * Fetches all users from the API.
- */
-const fetchUsers = async () => {
-  try {
-    const { data } = await axios.get('/api/users'); // Assuming you have a /api/users endpoint
-    allUsers.value = data.data;
-  } catch (error: unknown) {
-    console.error('Error fetching users:', error);
-    // Handle error appropriately
-  }
+const formatDateTime = (dateString: string) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('id-ID') + ' ' + date.toLocaleTimeString('id-ID');
 };
 
-/**
- * Selects a transaction for editing and loads its data into the form.
- * @param transaksi The transaction object to be edited.
- */
-const selectTransactionForEdit = async (transaksi: TransaksiResponse) => {
-  try {
-    await Promise.all([fetchProduk(), fetchPelanggans(), fetchUsers()]);
-
-    // Normalize data structure
-    const clonedTransaksi: TransaksiResponse = {
-      ...transaksi,
-      detailtransaksis: (transaksi.detailtransaksis || transaksi.detailtransaksis || []).map(item => {
-        const masterProduk = semuaProduk.value.find(p => p.id === item.id_produk);
-        return {
-          ...item,
-          produk: masterProduk || {
-            id: item.id_produk,
-            nama_produk: item.produk?.nama_produk || `Produk (ID: ${item.id_produk})`,
-            harga_jual: item.harga_satuan,
-            jumlah_stok: 0
-          }
-        };
-      }),
-      jatuh_tempo: transaksi.jatuh_tempo
-        ? new Date(transaksi.jatuh_tempo).toISOString().split('T')[0]
-        : null,
-      id_user: transaksi.user?.id || transaksi.id_user,
-      id_pelanggan: transaksi.pelanggan?.id || transaksi.id_pelanggan
-    };
-
-    selectedTransaksi.value = clonedTransaksi;
-    additionalPayment.value = 0;
-    isEditModalOpen.value = true;
-
-  } catch (error: unknown) {
-    let errorMessage = 'Tidak dapat memuat data produk atau transaksi.';
-    if (axios.isAxiosError(error)) {
-      errorMessage = error.response?.data?.message || error.message;
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    console.error('Gagal memuat produk/transaksi:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Gagal',
-      text: errorMessage,
-    });
-  }
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(amount || 0);
 };
 
-/**
- * Computes the sub total (sum of all item total_harga) for the selected transaction.
- */
+// Filter transaksi berdasarkan search term
+const filteredTransactions = computed(() => {
+  return transaksis.value.filter(transaksi => {
+    const matchesSearch = searchTerm.value === '' ||
+      transaksi.id.toString().includes(searchTerm.value) ||
+      (transaksi.pelanggan?.nama_pelanggan && transaksi.pelanggan.nama_pelanggan.toLowerCase().includes(searchTerm.value.toLowerCase())) ||
+      (transaksi.pelanggan?.nama_toko && transaksi.pelanggan.nama_toko.toLowerCase().includes(searchTerm.value.toLowerCase()));
+
+    const matchesStatus = statusFilter.value === 'all' ||
+      transaksi.status_pembayaran === statusFilter.value;
+
+    const matchesDate = (!dateRange.value.start && !dateRange.value.end) ||
+      (new Date(transaksi.created_at) >= new Date(dateRange.value.start)) &&
+      (new Date(transaksi.created_at) <= new Date(dateRange.value.end))
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+});
+
+// Hitung sub total berdasarkan item di frontend
 const computedSubTotalHarga = computed(() => {
-  if (!selectedTransaksi.value) return 0;
-  return selectedTransaksi.value.detailtransaksis.reduce(
-    (sum: number, item: detailtransaksis) => sum + (item.total_harga || (item.jumlah * item.harga_satuan)), 0
-  );
+  if (!selectedTransaksi.value || !selectedTransaksi.value.detailtransaksis) return 0;
+  return selectedTransaksi.value.detailtransaksis.reduce((total: number, item: any) => {
+    const hargaSatuan = parseFloat(item.harga_satuan) || 0;
+    return total + (item.jumlah * hargaSatuan);
+  }, 0);
 });
 
-/**
- * Computes the total bill for the selected transaction after discount.
- * This is the amount the customer *should* pay based on current items.
- */
 const totalTagihan = computed(() => {
-  if (!selectedTransaksi.value) return 0;
-  return computedSubTotalHarga.value - (selectedTransaksi.value.diskon || 0);
+  const diskon = parseFloat(selectedTransaksi.value?.diskon || 0);
+  return computedSubTotalHarga.value - diskon;
 });
 
-/**
- * Computes the currently paid amount (original total_bayar + additional payment).
- */
-const currentPaidAmount = computed(() => {
-  if (!selectedTransaksi.value) return 0;
-  return selectedTransaksi.value.total_bayar + additionalPayment.value;
-});
-
-/**
- * Computes the remaining balance (sisa tagihan) for the selected transaction.
- */
 const sisaTagihan = computed(() => {
   if (!selectedTransaksi.value) return 0;
-  return Math.max(0, totalTagihan.value - currentPaidAmount.value);
+  const totalBayarAwal = parseFloat(selectedTransaksi.value.total_bayar) || 0;
+  const totalBayarSaatIni = totalBayarAwal + additionalPayment.value;
+  return Math.max(0, totalTagihan.value - totalBayarSaatIni);
 });
 
-// Watch for changes in sisaTagihan to update status_pembayaran
-watch(sisaTagihan, (newSisa) => {
-  if (selectedTransaksi.value) {
-    if (newSisa <= 0) {
-      selectedTransaksi.value.status_pembayaran = 'cash';
-    } else {
-      // Only set to kredit if it was previously cash and now has remaining,
-      // or if it's already kredit. Don't force 'kredit' if it was cash and just became zero.
-      if (selectedTransaksi.value.status_pembayaran === 'cash' && newSisa > 0) {
-        selectedTransaksi.value.status_pembayaran = 'kredit';
-      }
-    }
+// Validasi tambahan pembayaran
+const validateAdditionalPayment = () => {
+  if (additionalPayment.value < 0) {
+    additionalPayment.value = 0;
   }
-});
-
-
-/**
- * Closes the edit form and resets the selected transaction.
- */
-const closeEditForm = () => {
-  selectedTransaksi.value = null;
-  isEditModalOpen.value = false;
-  additionalPayment.value = 0; // Reset additional payment
 };
 
-/**
- * Handles the update of a transaction.
- * Sends the updated transaction data to the backend API.
- */
-const updateTransaction = async () => {
-  if (!selectedTransaksi.value) return;
-
+// Pilih transaksi untuk diedit
+const openEditDialog = async (transaksi: any) => {
   try {
+    isLoadingDetail.value = true;
+    isEditDialogOpen.value = true;
+    
+    // Fetch detail lengkap transaksi
+    const response = await axios.get(`/api/transaksi/${transaksi.id}`);
+    selectedTransaksi.value = response.data.data;
+    additionalPayment.value = 0;
+
+    // Pastikan nilai-nilai numerik diinisialisasi dengan angka yang benar
+    selectedTransaksi.value.sub_total_bayar = parseFloat(selectedTransaksi.value.sub_total_bayar) || 0;
+    selectedTransaksi.value.total_bayar = parseFloat(selectedTransaksi.value.total_bayar) || 0;
+    selectedTransaksi.value.diskon = parseFloat(selectedTransaksi.value.diskon) || 0;
+
+    // Pastikan setiap detail transaksi memiliki harga_satuan sebagai float
+    if (selectedTransaksi.value.detailtransaksis) {
+      selectedTransaksi.value.detailtransaksis.forEach((item: any) => {
+        item.harga_satuan = parseFloat(item.harga_satuan) || 0;
+        item.total_harga = parseFloat(item.total_harga) || 0;
+      });
+    }
+
+  } catch (error) {
+    console.error('Gagal memuat detail transaksi:', error);
+    Swal.fire('Error', 'Gagal memuat detail transaksi', 'error');
+  } finally {
+    isLoadingDetail.value = false;
+  }
+};
+
+// Tutup form edit
+const closeEditDialog = () => {
+  isEditDialogOpen.value = false;
+  selectedTransaksi.value = null;
+  additionalPayment.value = 0;
+};
+
+// Tambah produk baru ke transaksi
+const tambahProdukBaru = () => {
+  if (!produkBaru.value.id || produkBaru.value.jumlah < 1) {
+    Swal.fire('Peringatan', 'Pilih produk dan jumlah yang valid', 'warning');
+    return;
+  }
+
+  const produk = semuaProduk.value.find(p => p.id == produkBaru.value.id);
+  if (!produk) return;
+
+  // Cek apakah produk sudah ada di transaksi
+  const existingItemIndex = selectedTransaksi.value.detailtransaksis.findIndex(
+    (item: any) => item.id_produk == produkBaru.value.id
+  );
+
+  if (existingItemIndex >= 0) {
+    // Jika sudah ada, tambahkan jumlahnya
+    selectedTransaksi.value.detailtransaksis[existingItemIndex].jumlah += produkBaru.value.jumlah;
+    selectedTransaksi.value.detailtransaksis[existingItemIndex].total_harga =
+      selectedTransaksi.value.detailtransaksis[existingItemIndex].jumlah *
+      selectedTransaksi.value.detailtransaksis[existingItemIndex].harga_satuan;
+  } else {
+    // Jika belum ada, tambahkan item baru
+    selectedTransaksi.value.detailtransaksis.push({
+      id_produk: produk.id,
+      produk: produk,
+      jumlah: produkBaru.value.jumlah,
+      harga_satuan: parseFloat(produk.harga_jual),
+      total_harga: produkBaru.value.jumlah * parseFloat(produk.harga_jual),
+    });
+  }
+
+  // Reset form produk baru
+  produkBaru.value = {
+    id: '',
+    jumlah: 1
+  };
+};
+
+// Update harga produk ketika jumlah diubah
+const updateHargaProduk = (index: number) => {
+  const item = selectedTransaksi.value.detailtransaksis[index];
+  if (item.jumlah < 1) item.jumlah = 1;
+  item.total_harga = item.jumlah * parseFloat(item.harga_satuan || 0);
+};
+
+// Tambah jumlah produk
+const tambahJumlah = (index: number) => {
+  selectedTransaksi.value.detailtransaksis[index].jumlah++;
+  updateHargaProduk(index);
+};
+
+// Kurangi jumlah produk
+const kurangiJumlah = (index: number) => {
+  if (selectedTransaksi.value.detailtransaksis[index].jumlah > 1) {
+    selectedTransaksi.value.detailtransaksis[index].jumlah--;
+    updateHargaProduk(index);
+  }
+};
+
+// Hapus produk dari transaksi
+const hapusProduk = (index: number) => {
+  selectedTransaksi.value.detailtransaksis.splice(index, 1);
+};
+
+// Update transaksi
+const updateTransaction = async () => {
+  try {
+    // Validasi data
+    if (!selectedTransaksi.value) return;
+
+    if (selectedTransaksi.value.status_pembayaran === 'kredit' && !selectedTransaksi.value.jatuh_tempo) {
+      Swal.fire('Peringatan', 'Harap tentukan jatuh tempo untuk transaksi kredit', 'warning');
+      return;
+    }
+
+    // Siapkan data untuk dikirim
     const payload = {
-      // Gunakan field yang sesuai dengan backend
-      sub_total_harga: computedSubTotalHarga.value,
-      total_bayar: currentPaidAmount.value,
-      total_kurang: sisaTagihan.value,
+      sub_total_bayar: computedSubTotalHarga.value,
+      total_bayar: parseFloat(selectedTransaksi.value.total_bayar || 0) + additionalPayment.value,
       status_pembayaran: selectedTransaksi.value.status_pembayaran,
       jatuh_tempo: selectedTransaksi.value.status_pembayaran === 'kredit'
         ? selectedTransaksi.value.jatuh_tempo
         : null,
-      diskon: selectedTransaksi.value.diskon || 0,
-      id_pelanggan: selectedTransaksi.value.id_pelanggan || null,
+      diskon: parseFloat(selectedTransaksi.value.diskon || 0),
+      id_pelanggan: selectedTransaksi.value.id_pelanggan,
       id_user: selectedTransaksi.value.id_user,
-      items: selectedTransaksi.value.detailtransaksis.map(item => ({
-        id_detail_transaksi: item.id || null, // ID null untuk item baru
+      items: selectedTransaksi.value.detailtransaksis.map((item: any) => ({
+        id_detail_transaksi: item.id || null,
         id_produk: item.id_produk,
         jumlah: item.jumlah,
-        harga_satuan: item.harga_satuan
+        harga_satuan: parseFloat(item.harga_satuan || 0)
       }))
     };
-    await axios.put(`/api/transaksi/{id}`, payload);
 
-    Swal.fire({
-      icon: 'success',
-      title: 'Berhasil!',
-      text: 'Transaksi berhasil diperbarui',
-      timer: 1500,
-      showConfirmButton: false,
-    });
+    // Kirim request update
+    await axios.put(`/api/transaksi/${selectedTransaksi.value.id}`, payload);
 
-    closeEditForm();
-    await fetchTransaksis();
+    // Tampilkan notifikasi sukses
+    Swal.fire('Sukses', 'Transaksi berhasil diperbarui', 'success');
 
-  } catch (error: unknown) {
-    let errorMessage = 'Terjadi kesalahan saat memperbarui transaksi';
-    if (axios.isAxiosError(error)) {
-      if (error.response && error.response.status === 422) {
-        const errors = error.response.data.errors;
-        let validationMessages = '';
-        for (const key in errors) {
-          if (Object.prototype.hasOwnProperty.call(errors, key)) {
-            validationMessages += `${errors[key].join(', ')}\n`;
-          }
-        }
-        errorMessage = `Validasi Gagal:\n${validationMessages}`;
-      } else {
-        errorMessage = error.response?.data?.message || error.message;
+    // Refresh data transaksi
+    fetchTransaksis();
+
+    // Tutup dialog
+    closeEditDialog();
+  } catch (error: any) {
+    console.error('Gagal memperbarui transaksi:', error);
+    let errorMessage = 'Gagal memperbarui transaksi';
+    if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+      if (error.response.data.error) {
+        errorMessage += ": " + error.response.data.error;
       }
-    } else if (error instanceof Error) {
-      errorMessage = error.message;
     }
-
-    console.error('Gagal update transaksi:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Gagal',
-      text: errorMessage,
-      html: errorMessage.includes('\n') ? `<pre style="text-align: left;">${errorMessage}</pre>` : errorMessage,
-    });
+    Swal.fire('Error', errorMessage, 'error');
   }
 };
 
-/**
- * Handles the deletion of a transaction.
- * @param id The ID of the transaction to delete.
- */
+// Hapus transaksi
 const deleteTransaction = async (id: number) => {
-  // Cari transaksi yang akan dihapus
-  const transaksi = transaksis.value.find(t => t.id === id);
-
-  // Validasi: Cek apakah pelanggan masih memiliki kredit aktif
-  if (transaksi && transaksi.status_pembayaran === 'kredit' && transaksi.total_kurang > 0) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Tidak Dapat Dihapus',
-      html: `Pelanggan masih memiliki sisa tagihan sebesar <b>${formatCurrency(transaksi.total_kurang)}</b>. 
-             Transaksi dengan status kredit dan sisa tagihan tidak dapat dihapus.`,
-    });
-    return;
-  }
-
-  // Lanjutkan dengan konfirmasi penghapusan jika validasi lolos
-  Swal.fire({
-    title: 'Apakah Anda yakin?',
-    text: "Anda tidak akan dapat mengembalikan ini!",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#3085d6',
-    cancelButtonColor: '#d33',
-    confirmButtonText: 'Ya, hapus!',
-    cancelButtonText: 'Batal'
-  }).then(async (result) => {
-    if (result.isConfirmed) {
-      try {
-        await axios.delete(`/api/transaksi/${id}`);
-        Swal.fire(
-          'Dihapus!',
-          'Transaksi telah berhasil dihapus.',
-          'success'
-        );
-        if (selectedTransaksi.value?.id === id) {
-          closeEditForm();
-        }
-        await fetchTransaksis();
-      } catch (error: unknown) {
-        let errorMessage = 'Gagal menghapus transaksi.';
-        if (axios.isAxiosError(error)) {
-          errorMessage = error.response?.data?.message || error.message;
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        console.error('Error deleting transaksi:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal',
-          text: errorMessage,
-        });
-      }
-    }
-  });
-};
-/**
- * Formats a number as Indonesian Rupiah currency.
- * @param value The number to format.
- * @returns Formatted currency string.
- */
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    minimumFractionDigits: 0,
-  }).format(value);
-
-/**
- * Formats a date string into a localized date and time string.
- * @param dateString The date string to format.
- * @returns Formatted date and time string or '-'.
- */
-const formatDateTime = (dateString?: string) => {
-  if (!dateString) return '-';
-  const options: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  };
-  return new Date(dateString).toLocaleString('id-ID', options);
-};
-
-/**
- * Formats a date string into a localized date string (DD/MM/YYYY).
- * @param dateString The date string to format.
- * @returns Formatted date string.
- */
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return '-';
-  return new Date(dateString).toLocaleDateString('id-ID', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
-// Sorting function
-const sortTransactions = (key: string) => {
-  if (sortConfig.value.key === key) {
-    sortConfig.value.direction = sortConfig.value.direction === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortConfig.value.key = key;
-    sortConfig.value.direction = 'asc';
-  }
-};
-
-// Gunakan Promise.all untuk paralel request
-onMounted(async () => {
-  isLoading.value = true;
   try {
-    await Promise.all([
-      fetchTransaksis(),
-      fetchProduk(),
-      fetchPelanggans(),
-      fetchUsers()
-    ]);
-  } finally {
-    isLoading.value = false;
-  }
-});
-
-/**
- * Computed property to filter transactions based on search term, status, and date range.
- */
-const filteredTransactions = computed(() => {
-  let result = [...transaksis.value];
-
-  // Filter by status
-  if (statusFilter.value !== 'all') {
-    result = result.filter(t => t.status_pembayaran === statusFilter.value);
-  }
-
-  // Filter by date range
-  if (dateRange.value.start && dateRange.value.end) {
-    const startDate = new Date(dateRange.value.start);
-    const endDate = new Date(dateRange.value.end);
-    endDate.setHours(23, 59, 59, 999); // Set to end of the day
-
-    result = result.filter(t => {
-      const transDate = new Date(t.created_at);
-      return transDate >= startDate && transDate <= endDate;
+    const result = await Swal.fire({
+      title: 'Apakah Anda yakin?',
+      text: "Transaksi yang dihapus tidak dapat dikembalikan!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ya, hapus!',
+      cancelButtonText: 'Batal'
     });
-  }
 
-  // Filter by search term
-  const term = searchTerm.value.toLowerCase().trim();
-  if (term) {
-    result = result.filter(transaction =>
-      transaction.id.toString().includes(term) ||
-      (transaction.pelanggan?.nama_pelanggan?.toLowerCase() || '').includes(term) ||
-      (transaction.pelanggan?.nama_toko?.toLowerCase() || '').includes(term) ||
-      (transaction.user?.name?.toLowerCase() || '').includes(term) // Also search by user name
-    );
-  }
-
-  return result;
-});
-
-// Reactive variable for adding new products to the transaction
-const produkBaru = ref<{ id: number | null; jumlah: number }>({
-  id: null,
-  jumlah: 1
-});
-
-/**
- * Decrements the quantity of a product in the selected transaction's detail.
- * @param index The index of the detail item in the array.
- */
-const kurangiJumlah = (index: number) => {
-  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
-
-  const item = selectedTransaksi.value.detailtransaksis[index];
-  if (item.jumlah > 1) {
-    item.jumlah--;
-    item.total_harga = item.jumlah * item.harga_satuan;
-  }
-};
-
-/**
- * Increments the quantity of a product in the selected transaction's detail.
- * Includes stock validation.
- * @param index 
- */
-const tambahJumlah = (index: number) => {
-  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
-  const totalInTransaction = selectedTransaksi.value.detailtransaksis
-    .filter(d => d.id_produk === item.id_produk)
-    .reduce((sum, d) => sum + d.jumlah, 0);
-  const item = selectedTransaksi.value.detailtransaksis[index];
-  const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
-  
-  if (!produkMaster) {
-    Swal.fire({ icon: 'error', title: 'Error', text: 'Produk tidak ditemukan di daftar master.' });
-    return;
-  }
-
-
-  const currentProductInTransactionCount = selectedTransaksi.value.detailtransaksis.reduce((sum, detail) => {
-    if (detail.id === item.produk.id) {
-      return sum + detail.jumlah;
+    if (result.isConfirmed) {
+      await axios.delete(`/api/transaksi/${id}`);
+      Swal.fire('Dihapus!', 'Transaksi berhasil dihapus.', 'success');
+      fetchTransaksis();
     }
-    return sum;
-  }, 0);
-
-  if (currentProductInTransactionCount + 1 > produkMaster.jumlah_stok) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Stok Terbatas',
-      text: `Stok ${produkMaster.nama_produk} hanya tersedia ${produkMaster.jumlah_stok} unit.`,
-    });
-    return;
-  }
-
-  item.jumlah++;
-  item.total_harga = item.jumlah * item.harga_satuan;
-};
-
-/**
- * Removes a product from the selected transaction's detail.
- * @param index The index of the detail item to remove.
- */
-const hapusProduk = (index: number) => {
-  if (selectedTransaksi.value?.detailtransaksis) {
-    selectedTransaksi.value.detailtransaksis.splice(index, 1);
+  } catch (error) {
+    console.error('Gagal menghapus transaksi:', error);
+    Swal.fire('Error', 'Gagal menghapus transaksi', 'error');
   }
 };
 
-/**
- * Adds a new product to the selected transaction's detail.
- * Includes stock validation and handles existing products.
- */
-const tambahProdukBaru = () => {
-  if (!selectedTransaksi.value) return;
+// Watch perubahan filter
+watch([searchTerm, statusFilter, dateRange], () => {
+  fetchTransaksis();
+}, { deep: true });
 
-  const produkId = produkBaru.value.id;
-  if (!produkId) {
-    Swal.fire({ icon: 'warning', title: 'Peringatan', text: 'Pilih produk terlebih dahulu.' });
-    return;
-  }
-  if (produkBaru.value.jumlah < 1) {
-    Swal.fire({ icon: 'warning', title: 'Peringatan', text: 'Jumlah produk tidak boleh kurang dari 1.' });
-    return;
-  }
-
-  const produkMaster = semuaProduk.value.find(p => p.id === produkId);
-  if (!produkMaster) {
-    Swal.fire({ icon: 'error', title: 'Error', text: 'Produk tidak ditemukan di daftar master.' });
-    return;
-  }
-
-  // Calculate total quantity of this product already in the transaction
-  const totalExistingJumlah = selectedTransaksi.value.detailtransaksis
-    .filter(d => d.id === produkId)
-    .reduce((sum, d) => sum + d.jumlah, 0);
-
-  // Available stock from master product minus what's already in the transaction
-  const availableStockForNewAddition = produkMaster.jumlah_stok - totalExistingJumlah;
-
-  if (produkBaru.value.jumlah > availableStockForNewAddition) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Stok Tidak Cukup',
-      text: `Stok ${produkMaster.nama_produk} yang tersedia untuk penambahan baru hanya ${availableStockForNewAddition} unit. Anda mencoba menambahkan ${produkBaru.value.jumlah}.`,
-    });
-    return;
-  }
-
-  // Check if the product already exists in the transaction details
-  const existingDetail = selectedTransaksi.value.detailtransaksis.find(
-    item => item.id === produkId
-  );
-
-  if (existingDetail) {
-    // Product already exists, increment its quantity
-    existingDetail.jumlah += produkBaru.value.jumlah;
-    existingDetail.total_harga = existingDetail.jumlah * existingDetail.harga_satuan;
-  } else {
-    // Product is new, add it as a new detail item
-    selectedTransaksi.value.detailtransaksis.push({
-      id_produk: produkMaster.id, // Gunakan id_produk
-      jumlah: produkBaru.value.jumlah,
-      harga_satuan: produkMaster.harga_jual,
-      total_harga: produkBaru.value.jumlah * produkMaster.harga_jual,
-      produk: {
-        ...produkMaster // Simpan salinan data produk
-      }
-    });
-  }
-
-  // Reset the new product form
-  produkBaru.value = { id: null, jumlah: 1 };
-};
-
-/**
- * Validates the additional payment amount.
- */
-const validateAdditionalPayment = () => {
-  if (!selectedTransaksi.value) return;
-
-  if (additionalPayment.value < 0) {
-    additionalPayment.value = 0;
-  }
-
-  // Max payment is the remaining balance
-  const maxPaymentPossible = totalTagihan.value - selectedTransaksi.value.total_bayar;
-  if (additionalPayment.value > maxPaymentPossible) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Peringatan',
-      text: `Jumlah pembayaran tidak boleh melebihi sisa tagihan ${formatCurrency(maxPaymentPossible)}.`,
-    });
-    additionalPayment.value = Math.max(0, maxPaymentPossible); // Cap the payment
-  }
-};
-
-/**
- * Updates the total price of a product item when its quantity or unit price changes.
- * Includes stock validation.
- * @param index 
- */
-const updateHargaProduk = (index: number) => {
-  if (!selectedTransaksi.value?.detailtransaksis?.[index]) return;
-
-  const item = selectedTransaksi.value.detailtransaksis[index];
-  const produkMaster = semuaProduk.value.find(p => p.id === item.produk.id);
-  if (!produkMaster) return;
-
-  if (item.jumlah < 1) item.jumlah = 1;
-
-
-  const totalQuantityForThisProduct = selectedTransaksi.value.detailtransaksis.reduce((sum, detail) => {
-    if (detail.id === item.produk.id) {
-      return sum + detail.jumlah;
-    }
-    return sum;
-  }, 0);
-
-  if (totalQuantityForThisProduct > produkMaster.jumlah_stok) {
-    Swal.fire({
-      icon: 'warning',
-      title: 'Stok Terbatas',
-      text: `Jumlah total ${item.produk.nama_produk} yang Anda masukkan (${totalQuantityForThisProduct}) melebihi stok tersedia (${produkMaster.jumlah_stok}).`,
-    });
-    const diff = totalQuantityForThisProduct - produkMaster.jumlah_stok;
-    item.jumlah = Math.max(1, item.jumlah - diff);
-  }
-
-  item.total_harga = item.jumlah * item.harga_satuan;
-};
-
+// Lifecycle hooks
+onMounted(() => {
+  fetchTransaksis();
+  fetchSemuaProduk();
+});
 </script>
 
 <template>
@@ -743,8 +353,8 @@ const updateHargaProduk = (index: number) => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Status</SelectItem>
-              <SelectItem value="cash">cash</SelectItem>
-              <SelectItem value="kredit">kredit</SelectItem>
+              <SelectItem value="cash">Cash</SelectItem>
+              <SelectItem value="kredit">Kredit</SelectItem>
             </SelectContent>
           </Select>
           <div class="flex gap-2 w-full">
@@ -785,8 +395,12 @@ const updateHargaProduk = (index: number) => {
                 <TableRow v-for="transaksi in filteredTransactions" :key="transaksi.id">
                   <TableCell>{{ transaksi.id }}</TableCell>
                   <TableCell>{{ formatDateTime(transaksi.created_at) }}</TableCell>
-                  <TableCell>{{ transaksi.pelanggan?.nama_pelanggan || '-' }} <br />
-                    <span class="text-xs text-gray-500">({{ transaksi.pelanggan?.nama_toko || '-' }})</span>
+                  <TableCell>
+                    {{ transaksi.pelanggan?.nama_pelanggan || '-' }} 
+                    <br />
+                    <span class="text-xs text-gray-500">
+                      ({{ transaksi.pelanggan?.nama_toko || '-' }})
+                    </span>
                   </TableCell>
                   <TableCell>{{ transaksi.user?.name || '-' }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.sub_total_bayar) }}</TableCell>
@@ -794,18 +408,19 @@ const updateHargaProduk = (index: number) => {
                   <TableCell>{{ formatCurrency(transaksi.total_bayar) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.total_kurang) }}</TableCell>
                   <TableCell>
-                    <Badge :variant="transaksi.status_pembayaran === 'cash' ? 'success' : 'destructive'">
-                      {{ transaksi.status_pembayaran === 'cash' ? 'cash' : 'kredit' }}
+                    <Badge :variant="transaksi.status_pembayaran === 'cash' ? 'default' : 'destructive'">
+                      {{ transaksi.status_pembayaran === 'cash' ? 'Cash' : 'Kredit' }}
                     </Badge>
                   </TableCell>
                   <TableCell>{{ formatDate(transaksi.jatuh_tempo) }}</TableCell>
-                  <TableCell>
-                    <div class="flex gap-2">
-                      <Button variant="outline" size="sm" @click="selectTransactionForEdit(transaksi)">Edit</Button>
-                      <Button variant="destructive" size="sm" @click="deleteTransaction(transaksi.id)">
-                        <Trash2 class="w-4 h-4" />
-                      </Button>
-                    </div>
+                  <TableCell class="text-right space-x-2">
+                    <Button @click="openEditDialog(transaksi)" variant="ghost" size="sm" class="h-8 px-2">
+                      <Pencil class="h-4 w-4" />
+                    </Button>
+                    <Button @click="deleteTransaction(transaksi.id)" variant="ghost" size="sm"
+                      class="h-8 px-2 text-destructive hover:text-destructive">
+                      <Trash2 class="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -814,152 +429,297 @@ const updateHargaProduk = (index: number) => {
         </CardContent>
       </Card>
 
-      <Dialog v-model:open="isEditModalOpen">
-        <DialogContent class="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <!-- Dialog Edit Transaksi -->
+      <Dialog v-model:open="isEditDialogOpen">
+        <DialogContent class="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Edit Transaksi #{{ selectedTransaksi?.id }}</DialogTitle>
+            <DialogTitle>
+              Edit Transaksi #{{ selectedTransaksi?.id }}
+            </DialogTitle>
             <DialogDescription>
               Ubah detail transaksi, produk, pembayaran, dan status.
             </DialogDescription>
           </DialogHeader>
 
-          <div v-if="selectedTransaksi" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Loading State -->
+          <div v-if="isLoadingDetail" class="flex justify-center items-center h-64">
+            <div class="text-center space-y-4">
+              <div class="loading-dots flex justify-center">
+                <span class="dot w-2 h-2 bg-primary rounded-full mx-1 animate-bounce"></span>
+                <span class="dot w-2 h-2 bg-primary rounded-full mx-1 animate-bounce" style="animation-delay: 0.2s"></span>
+                <span class="dot w-2 h-2 bg-primary rounded-full mx-1 animate-bounce" style="animation-delay: 0.4s"></span>
+              </div>
+              <p class="text-gray-500">Memuat detail transaksi...</p>
+            </div>
+          </div>
+
+          <!-- Form Edit -->
+          <div v-else-if="selectedTransaksi" class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-4">
               <h3 class="text-lg font-semibold">Detail Utama</h3>
 
               <div>
                 <Label for="pelanggan">Pelanggan</Label>
-                <Select v-model="selectedTransaksi.pelanggan!.id">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih Pelanggan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem :value="null">-- Tanpa Pelanggan --</SelectItem>
-                    <SelectItem v-for="pelanggan in allPelanggans" :key="pelanggan.id_pelanggan"
-                      :value="pelanggan.id_pelanggan">
-                      {{ pelanggan.nama_pelanggan }} ({{ pelanggan.nama_toko }})
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <p class="text-sm text-gray-700">
+                  {{ selectedTransaksi.pelanggan?.nama_pelanggan || '-' }}
+                  <span v-if="selectedTransaksi.pelanggan?.nama_toko">
+                    ({{ selectedTransaksi.pelanggan.nama_toko }})
+                  </span>
+                </p>
               </div>
-
+              
               <div>
                 <Label for="user">Kasir</Label>
-                <Select v-model="selectedTransaksi.user!.id">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih User" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem v-for="user in allUsers" :key="user.id" :value="user.id">
-                      {{ user.name }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <p class="text-sm text-gray-700">
+                  {{ selectedTransaksi.user?.name || '-' }}
+                </p>
               </div>
 
               <div>
-                <Label for="diskon">Diskon (Rp)</Label>
-                <Input id="diskon" type="number" v-model.number="selectedTransaksi.diskon" min="0" />
+                <Label>Diskon (Rp)</Label>
+                <Input 
+                  type="number" 
+                  v-model.number="selectedTransaksi.diskon" 
+                  min="0" 
+                  class="w-full"
+                />
+              </div>
+              
+              <div>
+                <Label>Tambahan Pembayaran (Rp)</Label>
+                <Input 
+                  type="number" 
+                  v-model.number="additionalPayment" 
+                  @input="validateAdditionalPayment" 
+                  class="w-full"
+                />
               </div>
 
               <div>
-                <Label for="total_bayar">Pembayaran Saat Ini (Rp)</Label>
-                <Input id="total_bayar" type="number" :value="selectedTransaksi.total_bayar" disabled />
-              </div>
-
-              <div>
-                <Label for="additional_payment">Tambahan Pembayaran (Rp)</Label>
-                <Input id="additional_payment" type="number" v-model.number="additionalPayment" min="0"
-                  @input="validateAdditionalPayment" />
-              </div>
-
-              <div>
-                <Label for="status_pembayaran">Status Pembayaran</Label>
+                <Label>Status Pembayaran</Label>
                 <Select v-model="selectedTransaksi.status_pembayaran">
-                  <SelectTrigger>
+                  <SelectTrigger class="w-full">
                     <SelectValue placeholder="Pilih Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">cash</SelectItem>
-                    <SelectItem value="kredit">kredit</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="kredit">Kredit</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-
+              
               <div v-if="selectedTransaksi.status_pembayaran === 'kredit'">
-                <Label for="jatuh_tempo">Jatuh Tempo</Label>
-                <Input id="jatuh_tempo" type="date" v-model="selectedTransaksi.jatuh_tempo" />
-              </div>
-
-              <div class="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-md">
-                <p class="font-semibold text-lg">Sub Total: {{ formatCurrency(computedSubTotalHarga) }}</p>
-                <p class="font-semibold text-lg">Total Tagihan (Setelah Diskon): {{ formatCurrency(totalTagihan) }}</p>
-                <p class="font-bold text-xl text-red-600 dark:text-red-400">Sisa Tagihan: {{ formatCurrency(sisaTagihan)
-                  }}</p>
+                <Label>Jatuh Tempo</Label>
+                <Input 
+                  type="date" 
+                  v-model="selectedTransaksi.jatuh_tempo"
+                  :min="new Date().toISOString().split('T')[0]" 
+                  class="w-full"
+                />
               </div>
             </div>
 
             <div class="space-y-4">
-              <h3 class="text-lg font-semibold">Daftar Produk</h3>
-
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-end border-b pb-4">
-                <div class="col-span-2">
-                  <Label for="new_produk">Tambah Produk Baru</Label>
-                  <Select v-model="produkBaru.id">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Produk" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="produk in semuaProduk" :key="produk.id" :value="produk.id">
-                        {{ produk.nama_produk }} (Stok: {{ produk.jumlah_stok }})
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label for="new_jumlah">Jumlah</Label>
-                  <Input id="new_jumlah" type="number" v-model.number="produkBaru.jumlah" min="1" />
-                </div>
-                <div class="col-span-3 text-right">
-                  <Button @click="tambahProdukBaru" class="w-full">Tambah Produk</Button>
+              <h3 class="text-lg font-semibold">Detail Produk</h3>
+              
+              <div v-if="selectedTransaksi.detailtransaksis && selectedTransaksi.detailtransaksis.length > 0">
+                <div class="border rounded-md">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead class="w-[40%]">Produk</TableHead>
+                        <TableHead>Jumlah</TableHead>
+                        <TableHead>Harga</TableHead>
+                        <TableHead class="text-right">Total</TableHead>
+                        <TableHead>Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow 
+                        v-for="(item, index) in selectedTransaksi.detailtransaksis"
+                        :key="item.id || item.id_produj"
+                      >
+                        <TableCell>
+                          {{ item.produk?.nama_produk || 'Produk Tidak Ditemukan' }}
+                        </TableCell>
+                        <TableCell>
+                          <div class="flex items-center gap-1">
+                            <Button 
+                              size="icon" 
+                              variant="outline" 
+                              @click="kurangiJumlah(index)"
+                              class="h-8 w-8"
+                            >
+                              <Minus class="w-4 h-4" />
+                            </Button>
+                            <Input 
+                              type="number" 
+                              v-model.number="item.jumlah" 
+                              min="1" 
+                              class="w-16 text-center"
+                              @change="updateHargaProduk(index)"
+                            />
+                            <Button 
+                              size="icon" 
+                              variant="outline" 
+                              @click="tambahJumlah(index)"
+                              class="h-8 w-8"
+                            >
+                              <Plus class="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {{ formatCurrency(item.harga_satuan) }}
+                        </TableCell>
+                        <TableCell class="text-right">
+                          {{ formatCurrency(item.total_harga) }}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            @click="hapusProduk(index)"
+                            class="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
+              
+              <div v-else class="text-gray-500 py-4 text-center">
+                Tidak ada produk dalam transaksi ini.
+              </div>
 
-              <div v-if="selectedTransaksi.detailtransaksis.length > 0" class="space-y-3 max-h-60 overflow-y-auto">
-                <div v-for="(item, index) in selectedTransaksi.detailtransaksis" :key="item.id || `new-${index}`"
-                  class="border p-2 rounded-md flex items-center gap-3">
-                  <div class="flex-grow">
-                    <p class="font-semibold">{{ item.produk.nama_produk }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Harga Satuan: {{
-                      formatCurrency(item.harga_satuan) }}</p>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Total: {{ formatCurrency(item.total_harga) }}
-                    </p>
+              <div class="mt-4">
+                <h4 class="text-md font-medium mb-2">Tambah Produk Baru</h4>
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <div class="flex-1">
+                    <Label>Produk</Label>
+                    <Select v-model="produkBaru.id">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Produk" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem 
+                          v-for="produk in semuaProduk" 
+                          :key="produk.id" 
+                          :value="produk.id"
+                        >
+                          {{ produk.nama_produk }} (Stok: {{ produk.jumlah_stok }})
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div class="flex items-center gap-1">
-                    <Button variant="outline" size="icon" @click="kurangiJumlah(index)">
-                      <Minus class="w-4 h-4" />
-                    </Button>
-                    <Input type="number" v-model.number="item.jumlah" min="1" class="w-16 text-center"
-                      @input="updateHargaProduk(index)" />
-                    <Button variant="outline" size="icon" @click="tambahJumlah(index)">
-                      <Plus class="w-4 h-4" />
+                  <div>
+                    <Label>Jumlah</Label>
+                    <Input 
+                      type="number" 
+                      v-model.number="produkBaru.jumlah" 
+                      min="1" 
+                      class="w-24"
+                    />
+                  </div>
+                  <div class="flex items-end">
+                    <Button @click="tambahProdukBaru" class="w-full sm:w-auto">
+                      Tambah
                     </Button>
                   </div>
-                  <Button variant="destructive" size="icon" @click="hapusProduk(index)">
-                    <Trash2 class="w-4 h-4" />
-                  </Button>
                 </div>
               </div>
-              <div v-else class="text-center text-gray-500 py-4">Belum ada produk dalam transaksi ini.</div>
             </div>
           </div>
-
-          <DialogFooter class="mt-6 flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" @click="closeEditForm">Batal</Button>
-            <Button @click="updateTransaction">Simpan Perubahan</Button>
+          
+          <!-- Summary Pembayaran -->
+          <DialogFooter v-if="selectedTransaksi" class="pt-4 border-t">
+            <div class="w-full space-y-2">
+              <div class="flex justify-between">
+                <span>Sub Total:</span>
+                <span class="font-medium">{{ formatCurrency(computedSubTotalHarga) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Diskon:</span>
+                <span class="font-medium text-destructive">
+                  -{{ formatCurrency(selectedTransaksi.diskon || 0) }}
+                </span>
+              </div>
+              <div class="flex justify-between pt-2 border-t">
+                <span class="font-bold">Total Tagihan:</span>
+                <span class="font-bold">{{ formatCurrency(totalTagihan) }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Sudah Dibayar:</span>
+                <span class="font-medium">
+                  {{ formatCurrency(parseFloat(selectedTransaksi.total_bayar || 0) + additionalPayment) }}
+                </span>
+              </div>
+              <div class="flex justify-between pt-2 border-t">
+                <span class="font-bold">Sisa Tagihan:</span>
+                <span class="font-bold text-destructive">
+                  {{ formatCurrency(sisaTagihan) }}
+                </span>
+              </div>
+              
+              <div class="flex justify-end gap-2 pt-4">
+                <Button variant="outline" @click="closeEditDialog">
+                  Batal
+                </Button>
+                <Button @click="updateTransaction">
+                  Simpan Perubahan
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.loading-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  animation: bounce 1.5s infinite;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.5rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .edit-form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .dialog-content {
+    max-height: 85vh;
+  }
+}
+</style>

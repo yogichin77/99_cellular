@@ -19,7 +19,10 @@ class DatabaseSeeder extends Seeder
             KategoriSeeder::class,
             MerekSeeder::class,
             ProdukSeeder::class,
+            PelangganSeeder::class,
             VerifiedUserSeeder::class,
+            TransaksiSeeder::class,
+
         ]);
     }
 }

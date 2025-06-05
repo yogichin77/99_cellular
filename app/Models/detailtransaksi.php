@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 class DetailTransaksi extends Model
 {
     use HasFactory;
-
+    protected $table = 'detailtransaksis';
     protected $fillable = [
         'id_transaksi',
         'id_produk',
@@ -27,5 +27,4 @@ class DetailTransaksi extends Model
     {
         return $this->belongsTo(Produk::class, 'id_produk');
     }
-
 }

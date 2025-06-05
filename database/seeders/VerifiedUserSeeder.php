@@ -14,20 +14,18 @@ class VerifiedUserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::create([
-            'name' => 'Admin Terverifikasi',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('12345678'),
-            'role' => 'admin',
-            'email_verified_at' => now(), // Verifikasi otomatis
-        ]);
-
-        User::create([
-            'name' => 'Kasir Terverifikasi',
-            'email' => 'kasir@example.com',
-            'password' => Hash::make('12345678'),
-            'role' => 'kasir',
-            'email_verified_at' => now(), // Verifikasi otomatis
-        ]);
+        // Tambahkan user acak jika perlu
+        $faker = \Faker\Factory::create('id_ID');
+        for ($i = 0; $i < 5; $i++) { // 5 user acak
+            User::create([
+                'name' => $faker->name(),
+                'email' => $faker->unique()->safeEmail(),
+                'password' => Hash::make('password'),
+                'role' => $faker->randomElement(['kasir', 'admin']), // Sesuaikan role yang ada
+                'created_at' => now(),
+                'email_verified_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

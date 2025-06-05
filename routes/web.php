@@ -80,10 +80,17 @@ Route::get('api/merek/{id}', [MerekController::class, 'show']);
 Route::put('api/merek/{id}', [MerekController::class, 'update']);
 Route::delete('api/merek/{id}', [MerekController::class, 'destroy']);
 
+
+
 Route::get('api/transaksi', [TransaksiController::class, 'index']);
+Route::get('api/transaksi/status', [TransaksiController::class, 'getTransactionStatus']);
+Route::get('api/transaksi/monthly-revenue', [TransaksiController::class, 'getMonthlyRevenue']);
+Route::get('api/transaksi/summary', [TransaksiController::class, 'getSummaryStatistics']);
+Route::get('api/transaksi/annual-revenue', [TransaksiController::class, 'getAnnualRevenue']);
+
 Route::get('api/transaksi/{id}', [TransaksiController::class, 'show']);
 Route::post('api/transaksi', [TransaksiController::class, 'store']);
-Route::put('api/transaksi/{id}', [TransaksiController::class, 'update']);
+Route::put('api/transaksi/{transaksi}', [TransaksiController::class, 'update']);
 Route::delete('api/transaksi/{id}', [TransaksiController::class, 'destroy']);
 
 Route::get('api/pelanggan', [PelangganController::class, 'index']);

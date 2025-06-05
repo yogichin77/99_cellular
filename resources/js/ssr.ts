@@ -28,10 +28,15 @@ createServer((page) =>
             // Make route function available globally...
             app.config.globalProperties.route = route;
 
+
             // Make route function available globally for SSR...
             if (typeof window === 'undefined') {
                 global.route = route;
             }
+
+            app.config.errorHandler = (err) => {
+                console.error('[SSR Error]', err);
+            };
 
             app.use(plugin);
 
@@ -39,3 +44,5 @@ createServer((page) =>
         },
     }),
 );
+
+

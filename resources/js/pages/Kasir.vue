@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { clearOfflineTransaksis, getAllOfflineTransaksis, saveOfflineTransaksi } from '@/lib/indexedDb';
+import { clearOfflineTransaksis, getAllOfflineTransaksis, saveOfflineTransaksi } from '@/lib/Idb_Kasir';
 import DetailTransaksi from '@/pages/DetailTransaksi.vue';
 import StrukTransaksi from '@/pages/StrukTransaksi.vue';
 import { type BreadcrumbItem } from '@/types';
@@ -83,7 +83,7 @@ window.addEventListener('online', async () => {
     const offlineData = await getAllOfflineTransaksis();
     for (const transaksi of offlineData) {
         try {
-            // Hanya kirim payload yang diperlukan
+
             const payload = {
                 sub_total_bayar: transaksi.subtotal,
                 diskon: transaksi.diskon,

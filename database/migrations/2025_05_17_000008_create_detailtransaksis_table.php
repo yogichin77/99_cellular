@@ -11,11 +11,11 @@ return new class extends Migration
         Schema::create('detailtransaksis', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('id_transaksi')->constrained('transaksis');
+            $table->foreignId('id_transaksi')->constrained('transaksis')->onDelete('cascade');
             $table->foreignId('id_produk')->constrained('produks')->onDelete('cascade');
             $table->integer('jumlah');
-            $table->decimal('harga_satuan',15,2);
-            $table->decimal('total_harga',15,2);
+            $table->decimal('harga_satuan', 15, 2);
+            $table->decimal('total_harga', 15, 2);
             $table->timestamps();
         });
     }

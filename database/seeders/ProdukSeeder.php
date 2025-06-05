@@ -27,3 +27,6 @@ class ProdukSeeder extends Seeder
         }
     }
 }
+
+
+
