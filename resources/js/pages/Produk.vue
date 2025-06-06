@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
+import { Textarea } from '@/components/ui/textarea/';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Produk', href: '/produk' }];
 
 // State
@@ -38,7 +38,9 @@ const form = ref({
   harga_jual: 0,
   jumlah_stok: 0,
   gambar_produk: null as File | string | null,
-  previewImage: ''
+  previewImage: '',
+  deskripsi_produk: '',
+  barcode: '',
 });
 
 // Fetch all data
@@ -103,8 +105,11 @@ const handleFileUpload = (event: Event) => {
 const filteredProduk = computed(() => {
   if (!searchTerm.value.trim()) return produk.value;
 
+  const lowerCaseSearchTerm = searchTerm.value.toLowerCase();
+
   return produk.value.filter(item =>
-    item.nama_produk.toLowerCase().includes(searchTerm.value.toLowerCase())
+    item.nama_produk.toLowerCase().includes(lowerCaseSearchTerm) ||
+    (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) // Tambahkan kondisi ini
   );
 });
 
@@ -132,6 +137,8 @@ const submitForm = async () => {
     formData.append('harga_modal', String(form.value.harga_modal));
     formData.append('harga_jual', String(form.value.harga_jual));
     formData.append('jumlah_stok', String(form.value.jumlah_stok));
+    formData.append('deskrisi_produk', String(form.value.deskripsi_produk));
+    formData.append('barcode', form.value.barcode);
 
     if (form.value.gambar_produk instanceof File) {
       formData.append('gambar_produk', form.value.gambar_produk);
@@ -168,7 +175,9 @@ const editProduk = (item: any) => {
     harga_jual: item.harga_jual,
     jumlah_stok: item.jumlah_stok,
     gambar_produk: item.gambar_produk || null,
-    previewImage: item.gambar_produk ? `/storage/${item.gambar_produk}` : ''
+    deskripsi_produk: item.deskripsi_produk || null,
+    previewImage: item.gambar_produk ? `/storage/${item.gambar_produk}` : '',
+    barcode: item.barcode || '',
   };
   editingId.value = item.id;
 };
@@ -207,7 +216,9 @@ const resetForm = () => {
     harga_jual: 0,
     jumlah_stok: 0,
     gambar_produk: null,
-    previewImage: ''
+    previewImage: '',
+    deskripsi_produk: '',
+    barcode: '',
   };
   editingId.value = null;
 };
@@ -249,6 +260,13 @@ const showError = (message: string) => {
 };
 
 onMounted(fetchproduk);
+
+const truncateText = (text: string, maxLength: number) => {
+  if (text && text.length > maxLength) {
+    return text.substring(0, maxLength) + '...';
+  }
+  return text;
+};
 </script>
 
 <template>
@@ -286,6 +304,14 @@ onMounted(fetchproduk);
           <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Left Column -->
             <div class="space-y-4">
+
+              <div class="space-y-2">
+                <Label for="barcode">
+                  Barcode
+                </Label>
+                <Input v-model.trim="form.barcode" id="barcode" placeholder="Scan atau masukkan barcode"
+                  :disabled="isSubmitting" />
+              </div>
               <!-- Nama Produk -->
               <div class="space-y-2">
                 <Label for="nama_produk">
@@ -363,6 +389,14 @@ onMounted(fetchproduk);
                 <Input v-model.number="form.jumlah_stok" id="jumlah_stok" type="number" min="0" required
                   :disabled="isSubmitting" />
               </div>
+
+              <div class="space-y-2">
+                <Label for="deskripsi_kategori">
+                  Deskripsi Produk <span class="text-destructive">*</span>
+                </Label>
+                <Textarea v-model="form.deskripsi_produk" id="deskripsi_kategori"
+                  placeholder="Masukkan deskripsi kategori" rows="4" />
+              </div>
             </div>
 
             <!-- Right Column - Image Upload -->
@@ -431,12 +465,14 @@ onMounted(fetchproduk);
               <TableHeader>
                 <TableRow>
                   <TableHead class="w-[100px]">Gambar</TableHead>
+                  <TableHead>Barcode</TableHead>
                   <TableHead>Produk</TableHead>
                   <TableHead>Kategori</TableHead>
                   <TableHead>Merek</TableHead>
                   <TableHead class="text-right">Harga Modal</TableHead>
                   <TableHead class="text-right">Harga Jual</TableHead>
                   <TableHead class="text-right">Stok</TableHead>
+                  <TableHead class="w-[50%]">Deskripsi Produk</TableHead>
                   <TableHead class="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -445,6 +481,9 @@ onMounted(fetchproduk);
                   <TableRow v-for="i in 5" :key="i">
                     <TableCell>
                       <Skeleton class="h-12 w-12 rounded-lg" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton class="h-4 w-[120px]" />
                     </TableCell>
                     <TableCell>
                       <Skeleton class="h-4 w-[120px]" />
@@ -464,6 +503,9 @@ onMounted(fetchproduk);
                     <TableCell>
                       <Skeleton class="h-4 w-[40px] ml-auto" />
                     </TableCell>
+                    <TableCell>
+                      <Skeleton class="h-4 w-[40px] ml-auto" />
+                    </TableCell>
                     <TableCell class="flex justify-end gap-2">
                       <Skeleton class="h-8 w-8" />
                       <Skeleton class="h-8 w-8" />
@@ -474,8 +516,11 @@ onMounted(fetchproduk);
                   <TableRow v-for="item in filteredProduk" :key="item.id"
                     class="group hover:bg-muted/50 transition-colors">
                     <TableCell>
-                      <img :src="item.gambar_produk ? `/storage/${item.gambar_produk}` : '/placeholder-product.jpg'"
+                      <img :src="item.gambar_produk ? `../storage/${item.gambar_produk}` : '/placeholder-product.jpg'"
                         alt="Produk" class="h-12 w-12 rounded-lg object-cover border">
+                    </TableCell>
+                    <TableCell class="font-medium">
+                        {{ item.barcode || '-' }}
                     </TableCell>
                     <TableCell class="font-medium">
                       {{ item.nama_produk }}
@@ -501,6 +546,10 @@ onMounted(fetchproduk);
                         item.jumlah_stok > 0 ? 'warning' : 'destructive'">
                         {{ item.jumlah_stok }}
                       </Badge>
+                    </TableCell>
+                    <TableCell
+                      class="text-muted-foreground max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                      {{ truncateText(item.deskripsi_produk, 100) }}
                     </TableCell>
                     <TableCell class="text-right space-x-2">
                       <Button @click="editProduk(item)" variant="ghost" size="sm"

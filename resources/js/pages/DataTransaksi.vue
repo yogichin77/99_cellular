@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Minus, Plus, Search, Trash2, Pencil } from 'lucide-vue-next';
+import { Minus, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -150,7 +150,7 @@ const openEditDialog = async (transaksi: any) => {
     additionalPayment.value = 0;
 
     // Pastikan nilai-nilai numerik diinisialisasi dengan angka yang benar
-    selectedTransaksi.value.sub_total_bayar = parseFloat(selectedTransaksi.value.sub_total_bayar) || 0;
+    selectedTransaksi.value.sub_total = parseFloat(selectedTransaksi.value.sub_total) || 0;
     selectedTransaksi.value.total_bayar = parseFloat(selectedTransaksi.value.total_bayar) || 0;
     selectedTransaksi.value.diskon = parseFloat(selectedTransaksi.value.diskon) || 0;
 
@@ -255,7 +255,7 @@ const updateTransaction = async () => {
 
     // Siapkan data untuk dikirim
     const payload = {
-      sub_total_bayar: computedSubTotalHarga.value,
+      sub_total: computedSubTotalHarga.value,
       total_bayar: parseFloat(selectedTransaksi.value.total_bayar || 0) + additionalPayment.value,
       status_pembayaran: selectedTransaksi.value.status_pembayaran,
       jatuh_tempo: selectedTransaksi.value.status_pembayaran === 'kredit'
@@ -401,7 +401,7 @@ onMounted(() => {
                     </span>
                   </TableCell>
                   <TableCell>{{ transaksi.user?.name || '-' }}</TableCell>
-                  <TableCell>{{ formatCurrency(transaksi.sub_total_bayar) }}</TableCell>
+                  <TableCell>{{ formatCurrency(transaksi.sub_total) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.diskon) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.total_bayar) }}</TableCell>
                   <TableCell>{{ formatCurrency(transaksi.total_kurang) }}</TableCell>

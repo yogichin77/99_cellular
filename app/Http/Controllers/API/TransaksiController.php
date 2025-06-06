@@ -39,7 +39,7 @@ class TransaksiController extends Controller
         try {
             // Validasi data input
             $validator = Validator::make($request->all(), [
-                'sub_total_bayar' => 'required|numeric|min:0', // Meskipun dihitung ulang, ini sebagai baseline
+                'sub_total' => 'required|numeric|min:0', // Meskipun dihitung ulang, ini sebagai baseline
                 'total_bayar' => 'required|numeric|min:0',
                 'status_pembayaran' => 'required|in:cash,kredit',
                 'jatuh_tempo' => ['nullable', 'date', Rule::requiredIf($request->status_pembayaran === 'kredit')],
@@ -73,7 +73,7 @@ class TransaksiController extends Controller
 
                 // Buat record transaksi utama
                 $transaksi = Transaksi::create([
-                    'sub_total_bayar' => $calculatedSubTotal, // Menggunakan sub_total yang dihitung
+                    'sub_total' => $calculatedSubTotal, // Menggunakan sub_total yang dihitung
                     'total_bayar' => $totalBayar,
                     'total_kurang' => $totalKurang,
                     'status_pembayaran' => $request->status_pembayaran,
@@ -159,7 +159,7 @@ class TransaksiController extends Controller
         try {
             // Validasi data input
             $validated = $request->validate([
-                'sub_total_bayar' => 'required|numeric|min:0',
+                'sub_total' => 'required|numeric|min:0',
                 'total_bayar' => 'required|numeric|min:0',
                 'status_pembayaran' => 'required|in:cash,kredit',
                 'jatuh_tempo' => [
@@ -199,7 +199,7 @@ class TransaksiController extends Controller
                     'current_detail_transaksi_state' => $transaksi->detailtransaksis->toArray()
                 ]);
 
-                // Hitung ulang sub_total_bayar dari item yang dikirim
+                // Hitung ulang sub_total dari item yang dikirim
                 $calculatedSubTotal = 0;
                 foreach ($validated['items'] as $item) {
                     $produk = Produk::findOrFail($item['id_produk']);
@@ -214,7 +214,7 @@ class TransaksiController extends Controller
                 // Update data transaksi utama
                 // Pastikan kita mengupdate objek $transaksi yang sama
                 $transaksi->update([
-                    'sub_total_bayar' => $calculatedSubTotal,
+                    'sub_total' => $calculatedSubTotal,
                     'total_bayar' => $totalBayar,
                     'total_kurang' => $totalKurang,
                     'status_pembayaran' => $validated['status_pembayaran'],

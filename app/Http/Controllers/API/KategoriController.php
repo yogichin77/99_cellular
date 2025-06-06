@@ -23,6 +23,7 @@ class KategoriController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nama_kategori' => 'required|string|max:255|unique:kategoris,nama_kategori',
+            'deskripsi_kategori' => 'nullable|string', // Ganti longtext dengan string
         ]);
 
         if ($validator->fails()) {
@@ -73,6 +74,8 @@ class KategoriController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nama_kategori' => 'required|string|max:255|unique:kategoris,nama_kategori,' . $id,
+            'deskripsi_kategori' => 'sometimes|string',
+
         ]);
 
         if ($validator->fails()) {

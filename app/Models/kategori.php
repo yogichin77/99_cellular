@@ -16,6 +16,7 @@ class Kategori extends Model
 
     protected $fillable = [
         'nama_kategori',
+        'deskripsi_kategori',
     ];
 
     protected $casts = [

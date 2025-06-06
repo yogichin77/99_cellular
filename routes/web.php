@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\API\ProdukController;
-use App\Http\Controllers\API\KategoriController;
-use App\Http\Controllers\API\MerekController;
-use App\Http\Controllers\API\TransaksiController;
-use App\Http\Controllers\API\PelangganController;
-use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\Api\ProdukController;
+use App\Http\Controllers\Api\KategoriController;
+use App\Http\Controllers\Api\MerekController;
+use App\Http\Controllers\Api\TransaksiController;
+use App\Http\Controllers\Api\PelangganController;
+use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -14,7 +14,9 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
-
+Route::get('pramuniaga', function () {
+    return inertia::render('Pramuniaga');
+})->name('Pramuniaga');
 
 // Grup untuk user yang sudah login dan terverifikasi
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -27,10 +29,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('kasir', function () {
         return Inertia::render('Kasir');
     })->name('Kasir')->middleware('role:kasir');
-
-    Route::get('pramuniaga', function () {
-        return Inertia::render('Pramuniaga');
-    })->name('Pramuniaga')->middleware('role:pramuniaga');
 
     // Grup route yang hanya untuk admin
     Route::middleware('role:admin')->group(function () {

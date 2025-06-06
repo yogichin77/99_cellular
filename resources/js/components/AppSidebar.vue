@@ -17,10 +17,7 @@ const navConfig: Record<string, NavItem[]> = {
         { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
         { title: 'Kasir', href: '/kasir', icon: Users },
     ],
-    pramuniaga: [
-        { title: 'Pramuniaga', href: '/pramuniaga', icon: Users },
-        { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
-    ],
+
     admin: [
         { title: 'Dashboard', href: '/dashboard', icon: LayoutGrid },
         { title: 'Data Produk', href: '/produk', icon: Package },

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import DetailTransaksi from '@/pages/DetailTransaksi.vue';
@@ -48,7 +49,7 @@ interface ItemTransaksi {
 
 interface TransaksiResponse {
     id: number;
-    sub_total_bayar: number;
+    sub_total: number;
     diskon: number;
     total_bayar: number;
     total_kurang: number;
@@ -371,7 +372,7 @@ const prosesTransaksi = async () => {
     isLoading.value = true;
     try {
         const payload = {
-            sub_total_bayar: subtotal.value,
+            sub_total: subtotal.value,
             diskon: diskon.value,
             total_bayar: totalBayar.value,
             status_pembayaran: statusPembayaran.value,
@@ -777,26 +778,58 @@ const prosesTransaksi = async () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    <TableRow v-for="transaksi in paginatedTransaksis" :key="transaksi.id">
-                                        <TableCell class="font-small">#{{ transaksi.id }}</TableCell>
-                                        <TableCell class="text-xs">{{ formatDateTime(transaksi.created_at)
-                                        }}</TableCell>
-                                        <TableCell class="text-xs">{{ transaksi.pelanggan?.nama_pelanggan ||
-                                            'Umum' }}</TableCell>
-                                        <TableCell class="text-right text-sm font-medium">{{
-                                            formatCurrency(transaksi.total_bayar) }}</TableCell>
-                                        <TableCell class="text-center">
-                                            <Button variant="ghost" size="icon"
-                                                @click="showTransactionDetail(transaksi)" class="h-7 w-7">
-                                                <Eye class="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow v-if="paginatedTransaksis.length === 0">
-                                        <TableCell colspan="5" class="text-center py-6 text-muted-foreground">
-                                            Tidak ada transaksi ditemukan.
-                                        </TableCell>
-                                    </TableRow>
+                                    <template v-if="isLoading">
+                                        <TableRow v-for="n in 5" :key="n">
+                                            <TableCell class="font-small">
+                                                <Skeleton
+                                                    class="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-16">
+                                                </Skeleton>
+                                            </TableCell>
+                                            <TableCell class="text-xs">
+                                                <Skeleton
+                                                    class="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-24">
+                                                </Skeleton>
+                                            </TableCell>
+                                            <TableCell class="text-xs">
+                                                <Skeleton
+                                                    class="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-32">
+                                                </Skeleton>
+                                            </TableCell>
+                                            <TableCell class="text-right text-sm font-medium">
+                                                <Skeleton
+                                                    class="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-20 ml-auto">
+                                                </Skeleton>
+                                            </TableCell>
+                                            <TableCell class="text-center">
+                                                <Skeleton
+                                                    class="h-7 w-7 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse mx-auto">
+                                                </Skeleton>
+                                            </TableCell>
+                                        </TableRow>
+                                    </template>
+
+                                    <template v-else>
+                                        <TableRow v-for="transaksi in paginatedTransaksis" :key="transaksi.id">
+                                            <TableCell class="font-small">#{{ transaksi.id }}</TableCell>
+                                            <TableCell class="text-xs">{{ formatDateTime(transaksi.created_at) }}
+                                            </TableCell>
+                                            <TableCell class="text-xs">{{ transaksi.pelanggan?.nama_pelanggan || 'Umum'
+                                                }}</TableCell>
+                                            <TableCell class="text-right text-sm font-medium">{{
+                                                formatCurrency(transaksi.total_bayar) }}</TableCell>
+                                            <TableCell class="text-center">
+                                                <Button variant="ghost" size="icon" title="Detail Transaksi"
+                                                    @click="showTransactionDetail(transaksi)" class="h-7 w-7">
+                                                    <Eye class="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow v-if="paginatedTransaksis.length === 0 && !isLoading">
+                                            <TableCell colspan="5" class="text-center py-6 text-muted-foreground">
+                                                Tidak ada transaksi ditemukan.
+                                            </TableCell>
+                                        </TableRow>
+                                    </template>
                                 </TableBody>
                             </Table>
                         </div>

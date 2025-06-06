@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
+import { Textarea } from '@/components/ui/textarea/';
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Merek', href: '/merek' }
 ];
@@ -24,6 +24,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 const merek = ref<any[]>([]);
 const form = ref({
     nama_merek: '',
+    deskripsi_merek: '',
 });
 const editingId = ref<number | null>(null);
 const isLoading = ref(false);
@@ -86,7 +87,10 @@ const submitForm = async () => {
 
 // Edit brand
 const editmerek = (item: any) => {
-    form.value = { nama_merek: item.nama_merek };
+    form.value = {
+        nama_merek: item.nama_merek,
+        deskripsi_merek: item.deskripsi_merek,
+    };
     editingId.value = item.id;
 };
 
@@ -127,17 +131,29 @@ const deletemerek = async (id: number) => {
 
 // Reset form
 const resetForm = () => {
-    form.value = { nama_merek: '' };
+    form.value = {
+        nama_merek: '',
+        deskripsi_merek: '',
+    };
     editingId.value = null;
 };
 
 onMounted(fetchmerek);
+
+
+const truncateText = (text: string, maxLength: number) => {
+    if (text && text.length > maxLength) {
+        return text.substring(0, maxLength) + '...';
+    }
+    return text;
+};
 </script>
 
 <template>
+
     <Head title="Merek" />
     <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <!-- Form Card -->
             <Card class="mb-6">
                 <CardHeader>
@@ -152,13 +168,16 @@ onMounted(fetchmerek);
                             <Label for="nama_merek">
                                 Nama Merek <span class="text-destructive">*</span>
                             </Label>
-                            <Input 
-                                v-model="form.nama_merek" 
-                                id="nama_merek" 
-                                placeholder="Masukkan nama merek" 
-                                required 
-                                :disabled="isSubmitting"
-                            />
+                            <Input v-model="form.nama_merek" id="nama_merek" placeholder="Masukkan nama merek" required
+                                :disabled="isSubmitting" />
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="deskripsi_kategori">
+                                Deskripsi Kategori <span class="text-destructive">*</span>
+                            </Label>
+                            <Textarea v-model="form.deskripsi_merek" id="deskripsi_kategori"
+                                placeholder="Masukkan deskripsi kategori" rows="4" />
                         </div>
                         <div class="flex gap-3 pt-2">
                             <Button type="submit" :disabled="isSubmitting">
@@ -170,13 +189,8 @@ onMounted(fetchmerek);
                                     </span>
                                 </span>
                             </Button>
-                            <Button 
-                                v-if="editingId" 
-                                @click="resetForm" 
-                                type="button" 
-                                variant="outline"
-                                :disabled="isSubmitting"
-                            >
+                            <Button v-if="editingId" @click="resetForm" type="button" variant="outline"
+                                :disabled="isSubmitting">
                                 <X class="w-4 h-4 mr-2" />
                                 Batal
                             </Button>
@@ -200,7 +214,8 @@ onMounted(fetchmerek);
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead class="w-[80%]">Nama Merek</TableHead>
+                                     <TableHead class="w-[30%]">Nama Merek</TableHead>
+                                    <TableHead class="w-[50%]">Deskripsi Kategori</TableHead>
                                     <TableHead class="text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -217,29 +232,23 @@ onMounted(fetchmerek);
                                     </TableRow>
                                 </template>
                                 <template v-else>
-                                    <TableRow 
-                                        v-for="item in merek" 
-                                        :key="item.id"
-                                        class="group hover:bg-muted/50 transition-colors"
-                                    >
+                                    <TableRow v-for="item in merek" :key="item.id"
+                                        class="group hover:bg-muted/50 transition-colors">
                                         <TableCell class="font-medium">
                                             {{ item.nama_merek }}
                                         </TableCell>
+                                        <TableCell
+                                            class="text-muted-foreground max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            {{ truncateText(item.deskripsi_merek, 100) }}
+                                        </TableCell>
                                         <TableCell class="text-right space-x-2">
-                                            <Button 
-                                                @click="editmerek(item)" 
-                                                variant="ghost" 
-                                                size="sm"
-                                                class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
+                                            <Button @click="editmerek(item)" variant="ghost" size="sm" title="Edit"
+                                                class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Pencil class="h-4 w-4" />
                                             </Button>
-                                            <Button 
-                                                @click="deletemerek(item.id)" 
-                                                variant="ghost" 
-                                                size="sm"
-                                                class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
+                                            <Button @click="deletemerek(item.id)" variant="ghost" size="sm"
+                                                title="Hapus"
+                                                class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Trash2 class="h-4 w-4" />
                                             </Button>
                                         </TableCell>
@@ -273,16 +282,25 @@ onMounted(fetchmerek);
 .loading-dots span:nth-child(1) {
     --index: 1;
 }
+
 .loading-dots span:nth-child(2) {
     --index: 2;
 }
+
 .loading-dots span:nth-child(3) {
     --index: 3;
 }
 
 @keyframes blink {
-    0%, 100% { opacity: 0.2; }
-    50% { opacity: 1; }
+
+    0%,
+    100% {
+        opacity: 0.2;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 @media (max-width: 640px) {

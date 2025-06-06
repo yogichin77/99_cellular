@@ -15,6 +15,7 @@ class Merek extends Model
 
     protected $fillable = [
         'nama_merek',
+        'dekripsi_merek',
     ];
 
     protected $casts = [

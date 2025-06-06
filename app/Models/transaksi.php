@@ -14,7 +14,7 @@ class Transaksi extends Model
 
 
     protected $fillable = [
-        'sub_total_bayar',
+        'sub_total',
         'total_bayar',
         'total_kurang',
         'status_pembayaran',
@@ -26,7 +26,7 @@ class Transaksi extends Model
 
 
         protected $casts = [
-        'sub_total_bayar' => 'decimal:2', // Menggunakan 'decimal:2' untuk 2 angka di belakang koma
+        'sub_total' => 'decimal:2', // Menggunakan 'decimal:2' untuk 2 angka di belakang koma
         'diskon' => 'decimal:2',
         'total_bayar' => 'decimal:2',
         'total_kurang' => 'decimal:2',

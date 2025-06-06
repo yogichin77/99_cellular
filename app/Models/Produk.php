@@ -18,6 +18,8 @@ class Produk extends Model
         'harga_jual',
         'jumlah_stok',
         'gambar_produk',
+        'deskripsi_produk',
+        'barcode',
     ];
 
     // Relasi ke kategori

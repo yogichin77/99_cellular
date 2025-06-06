@@ -414,11 +414,11 @@ onMounted(fetchUsers);
                                                     class="h-4 w-4 text-green-600" />
                                                 <XCircle v-else class="h-4 w-4 text-yellow-600" />
                                             </Button>
-                                            <Button @click="openEditDialog(item)" variant="ghost" size="sm"
+                                            <Button @click="openEditDialog(item)" variant="ghost" size="sm" title="Edit"
                                                 class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Pencil class="h-4 w-4" />
                                             </Button>
-                                            <Button @click="deleteUser(item.id)" variant="ghost" size="sm"
+                                            <Button @click="deleteUser(item.id)" variant="ghost" size="sm" title="Hapus"
                                                 class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Trash2 class="h-4 w-4" />
                                             </Button>

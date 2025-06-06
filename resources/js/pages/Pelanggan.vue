@@ -414,12 +414,13 @@ onMounted(async () => {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell class="text-right space-x-2">
-                                                <Button @click="editpelanggan(item)" variant="ghost" size="sm"
+                                                <Button @click="editpelanggan(item)" variant="ghost" size="sm" title="Edit"
                                                     class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Pencil class="h-4 w-4" />
                                                 </Button>
                                                 <Button @click="deletepelanggan(item.id)" variant="ghost"
                                                     size="sm"
+                                                    title="Hapus"
                                                     class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Trash2 class="h-4 w-4" />
                                                 </Button>

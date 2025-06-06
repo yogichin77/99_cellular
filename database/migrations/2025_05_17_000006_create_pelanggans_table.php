@@ -17,7 +17,6 @@ return new class extends Migration
             $table->string('no_handphone');
             $table->string('alamat');
             $table->string('nama_toko');
-            $table->string('email')->unique();
             $table->timestamps();
         });
     }

@@ -91,7 +91,7 @@
             <div class="flex flex-col items-end space-y-2">
               <div class="flex justify-between w-full max-w-[220px]">
                 <p class="text-gray-700 dark:text-gray-300">Subtotal:</p>
-                <span class="text-gray-900 dark:text-gray-100">{{ formatCurrency(transaction.sub_total_bayar) }}</span>
+                <span class="text-gray-900 dark:text-gray-100">{{ formatCurrency(transaction.sub_total) }}</span>
               </div>
               <div class="flex justify-between w-full max-w-[220px]">
                 <p class="text-gray-700 dark:text-gray-300">Diskon:</p>
@@ -110,7 +110,7 @@
                 </div>
                 <div class="flex justify-between">
                   <p class="font-bold text-gray-900 dark:text-gray-100">Kembalian:</p>
-                  <span class="font-bold text-green-700 dark:text-green-300">{{ formatCurrency(transaction.total_bayar - (transaction.sub_total_bayar - transaction.diskon)) }}</span>
+                  <span class="font-bold text-green-700 dark:text-green-300">{{ formatCurrency(transaction.total_bayar - (transaction.sub_total - transaction.diskon)) }}</span>
                 </div>
               </div>
               
@@ -152,9 +152,9 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from '@/components/ui/dialog';
 import type { TransaksiResponse } from '@/types';
 import { Printer } from 'lucide-vue-next';

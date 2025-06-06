@@ -23,6 +23,7 @@ class MerekController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nama_merek' => 'required|string|max:255|unique:mereks,nama_merek',
+            'deskripsi_kategori' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -73,6 +74,7 @@ class MerekController extends Controller
 
         $validator = Validator::make($request->all(), [
             'nama_merek' => 'required|string|max:255|unique:mereks,nama_merek,' . $id,
+            'deskripsi_merek' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {

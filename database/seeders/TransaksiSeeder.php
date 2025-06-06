@@ -106,7 +106,7 @@ class TransaksiSeeder extends Seeder
             $transaksi = Transaksi::create([
                 'id_pelanggan' => $faker->randomElement($pelangganIds) ?: null, // Bisa null jika tidak ada pelanggan
                 'id_user' => $faker->randomElement($userIds),
-                'sub_total_bayar' => $subTotalBayar,
+                'sub_total' => $subTotalBayar,
                 'diskon' => $diskon,
                 'total_bayar' => $totalBayar,
                 'total_kurang' => $totalKurang,

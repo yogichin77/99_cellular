@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea/';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Kategori', href: '/kategori' }
@@ -23,6 +24,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 const kategori = ref<any[]>([]);
 const form = ref({
     nama_kategori: '',
+    deskripsi_kategori: '',
 });
 const editingId = ref<number | null>(null);
 const isLoading = ref(false);
@@ -54,9 +56,18 @@ const submitForm = async () => {
         }
         resetForm();
         await fetchkategori();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error saving category:', error);
-        Swal.fire('Error', 'Gagal menyimpan kategori', 'error');
+        if (error.response && error.response.status === 422) {
+            const errors = error.response.data.errors;
+            let errorMessage = '';
+            for (const key in errors) {
+                errorMessage += errors[key].join(', ') + '\n';
+            }
+            Swal.fire('Validasi Gagal', errorMessage, 'error');
+        } else {
+            Swal.fire('Error', 'Gagal menyimpan kategori', 'error');
+        }
     } finally {
         isLoading.value = false;
     }
@@ -64,7 +75,10 @@ const submitForm = async () => {
 
 // Edit category
 const editkategori = (item: any) => {
-    form.value = { nama_kategori: item.nama_kategori };
+    form.value = {
+        nama_kategori: item.nama_kategori,
+        deskripsi_kategori: item.deskripsi_kategori,
+    };
     editingId.value = item.id;
 };
 
@@ -97,8 +111,19 @@ const deletekategori = async (id: number) => {
 
 // Reset form
 const resetForm = () => {
-    form.value = { nama_kategori: '' };
+    form.value = {
+        nama_kategori: '',
+        deskripsi_kategori: '',
+    };
     editingId.value = null;
+};
+
+// Fungsi untuk membatasi teks
+const truncateText = (text: string, maxLength: number) => {
+    if (text && text.length > maxLength) {
+        return text.substring(0, maxLength) + '...';
+    }
+    return text;
 };
 
 onMounted(fetchkategori);
@@ -107,8 +132,7 @@ onMounted(fetchkategori);
 <template>
     <Head title="Kategori" />
     <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <!-- Form Card -->
+        <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <Card class="mb-6">
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
@@ -122,11 +146,24 @@ onMounted(fetchkategori);
                             <Label for="nama_kategori">
                                 Nama Kategori <span class="text-destructive">*</span>
                             </Label>
-                            <Input 
-                                v-model="form.nama_kategori" 
-                                id="nama_kategori" 
-                                placeholder="Masukkan nama kategori" 
-                                required 
+                            <Input
+                                v-model="form.nama_kategori"
+                                id="nama_kategori"
+                                placeholder="Masukkan nama kategori"
+                                required
+                            />
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="deskripsi_kategori">
+                                Deskripsi Kategori <span class="text-destructive">*</span>
+                            </Label>
+                            <Textarea
+                                v-model="form.deskripsi_kategori"
+                                id="deskripsi_kategori"
+                                placeholder="Masukkan deskripsi kategori"
+                                rows="4"
+                                required
                             />
                         </div>
                         <div class="flex gap-3 pt-2">
@@ -139,10 +176,10 @@ onMounted(fetchkategori);
                                     </span>
                                 </span>
                             </Button>
-                            <Button 
-                                v-if="editingId" 
-                                @click="resetForm" 
-                                type="button" 
+                            <Button
+                                v-if="editingId"
+                                @click="resetForm"
+                                type="button"
                                 variant="outline"
                             >
                                 <X class="w-4 h-4 mr-2" />
@@ -153,7 +190,6 @@ onMounted(fetchkategori);
                 </CardContent>
             </Card>
 
-            <!-- Table Card -->
             <Card>
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
@@ -164,36 +200,42 @@ onMounted(fetchkategori);
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border">
+                    <div class="rounded-md border overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead class="w-[80%]">Nama Kategori</TableHead>
-                                    <TableHead class="text-right">Aksi</TableHead>
+                                    <TableHead class="w-[30%]">Nama Kategori</TableHead>
+                                    <TableHead class="w-[50%]">Deskripsi Kategori</TableHead>
+                                    <TableHead class="text-right w-[20%]">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow 
-                                    v-for="item in kategori" 
+                                <TableRow
+                                    v-for="item in kategori"
                                     :key="item.id"
                                     class="group hover:bg-muted/50 transition-colors"
                                 >
                                     <TableCell class="font-medium">
                                         {{ item.nama_kategori }}
                                     </TableCell>
+                                    <TableCell class="text-muted-foreground max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                        {{ truncateText(item.deskripsi_kategori, 100) }}
+                                    </TableCell>
                                     <TableCell class="text-right space-x-2">
-                                        <Button 
-                                            @click="editkategori(item)" 
-                                            variant="ghost" 
+                                        <Button
+                                            @click="editkategori(item)"
+                                            variant="ghost"
+                                            title="Edit"
                                             size="sm"
                                             class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <Pencil class="h-4 w-4" />
                                         </Button>
-                                        <Button 
-                                            @click="deletekategori(item.id)" 
-                                            variant="ghost" 
+                                        <Button
+                                            @click="deletekategori(item.id)"
+                                            variant="ghost"
                                             size="sm"
+                                            title="Hapus"
                                             class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <Trash2 class="h-4 w-4" />
@@ -201,12 +243,12 @@ onMounted(fetchkategori);
                                     </TableCell>
                                 </TableRow>
                                 <TableRow v-if="kategori.length === 0 && !isLoading">
-                                    <TableCell colspan="2" class="text-center text-muted-foreground py-8">
+                                    <TableCell colspan="3" class="text-center text-muted-foreground py-8">
                                         Tidak ada data kategori
                                     </TableCell>
                                 </TableRow>
                                 <TableRow v-if="isLoading">
-                                    <TableCell colspan="2" class="text-center text-muted-foreground py-8">
+                                    <TableCell colspan="3" class="text-center text-muted-foreground py-8">
                                         Memuat data...
                                     </TableCell>
                                 </TableRow>

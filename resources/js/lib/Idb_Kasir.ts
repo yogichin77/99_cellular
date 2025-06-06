@@ -75,7 +75,7 @@ export async function getAllOfflinePelanggans(): Promise<any[]> {
 
 // --- Transaksi Functions (ensure existing logic aligns with getDb and constants) ---
 interface OfflineTransaksiPayload {
-    sub_total_bayar: number;
+    sub_total: number;
     diskon: number;
     total_bayar: number;
     status_pembayaran: 'cash' | 'kredit';
