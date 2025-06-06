@@ -39,8 +39,7 @@ const filteredProduk = computed(() => {
             item.nama_produk.toLowerCase().includes(lowerCaseSearchTerm) ||
             (item.kategori && item.kategori.nama_kategori.toLowerCase().includes(lowerCaseSearchTerm)) ||
             (item.merek && item.merek.nama_merek.toLowerCase().includes(lowerCaseSearchTerm)) ||
-            (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) || // Tambahkan pencarian barcode
-            (item.deskripsi_produk && item.deskripsi_produk.toLowerCase().includes(lowerCaseSearchTerm)) // Tambahkan pencarian berdasarkan deskripsi
+            (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm))
     );
 });
 

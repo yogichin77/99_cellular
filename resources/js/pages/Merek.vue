@@ -16,6 +16,16 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea/';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'; // Import Dialog components
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Merek', href: '/merek' }
 ];
@@ -27,8 +37,9 @@ const form = ref({
     deskripsi_merek: '',
 });
 const editingId = ref<number | null>(null);
-const isLoading = ref(false);
-const isSubmitting = ref(false);
+const isLoading = ref(false); // For initial data fetch and general loading indication
+const isSubmitting = ref(false); // For form submission loading indication
+const isFormDialogOpen = ref(false); // State to control the dialog visibility
 
 // Fetch data
 const fetchmerek = async () => {
@@ -70,13 +81,20 @@ const submitForm = async () => {
                 confirmButtonColor: '#3b82f6',
             });
         }
-        resetForm();
+        isFormDialogOpen.value = false; // Close dialog on success
+        resetForm(); // Reset form after closing
         await fetchmerek();
-    } catch (error) {
+    } catch (error: any) { // Catch error as 'any' to access response properties
         console.error('Failed to save brand:', error);
+        let errorMessage = 'Gagal menyimpan data merek';
+        if (error.response && error.response.data && error.response.data.errors) {
+            // Handle validation errors from Laravel
+            const errors = error.response.data.errors;
+            errorMessage = Object.values(errors).flat().join('\n');
+        }
         Swal.fire({
             title: 'Error',
-            text: 'Gagal menyimpan data merek',
+            text: errorMessage,
             icon: 'error',
             confirmButtonColor: '#3b82f6',
         });
@@ -92,6 +110,7 @@ const editmerek = (item: any) => {
         deskripsi_merek: item.deskripsi_merek,
     };
     editingId.value = item.id;
+    isFormDialogOpen.value = true; // Open the dialog for editing
 };
 
 // Delete brand
@@ -109,6 +128,7 @@ const deletemerek = async (id: number) => {
 
     if (result.isConfirmed) {
         try {
+            isLoading.value = true; // Show loading while deleting
             await axios.delete(`/api/merek/${id}`);
             await fetchmerek();
             Swal.fire({
@@ -125,6 +145,8 @@ const deletemerek = async (id: number) => {
                 icon: 'error',
                 confirmButtonColor: '#3b82f6',
             });
+        } finally {
+            isLoading.value = false; // Hide loading after deleting
         }
     }
 };
@@ -136,10 +158,10 @@ const resetForm = () => {
         deskripsi_merek: '',
     };
     editingId.value = null;
+    // Don't set isFormDialogOpen to false here, let Dialog's v-model handle closing
 };
 
 onMounted(fetchmerek);
-
 
 const truncateText = (text: string, maxLength: number) => {
     if (text && text.length > maxLength) {
@@ -150,37 +172,58 @@ const truncateText = (text: string, maxLength: number) => {
 </script>
 
 <template>
-
     <Head title="Merek" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <!-- Form Card -->
-            <Card class="mb-6">
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <PlusCircle class="w-5 h-5" />
-                        {{ editingId ? 'Edit Merek' : 'Tambah Merek Baru' }}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitForm" class="space-y-4">
-                        <div class="space-y-2">
-                            <Label for="nama_merek">
-                                Nama Merek <span class="text-destructive">*</span>
-                            </Label>
-                            <Input v-model="form.nama_merek" id="nama_merek" placeholder="Masukkan nama merek" required
-                                :disabled="isSubmitting" />
-                        </div>
+            <div class="mb-4 flex justify-end">
+                <Dialog v-model:open="isFormDialogOpen" @update:open="val => { if (!val) resetForm() }">
+                    <DialogTrigger as-child>
+                        <Button @click="resetForm">
+                            <PlusCircle class="w-4 h-4 mr-2" />
+                            Tambah Merek Baru
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent class="sm:max-w-[500px] overflow-y-auto max-h-[90vh]">
+                        <DialogHeader>
+                            <DialogTitle>{{ editingId ? 'Edit Merek' : 'Tambah Merek Baru' }}</DialogTitle>
+                            <DialogDescription>
+                                Lengkapi detail merek di bawah ini. Klik simpan saat Anda selesai.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form @submit.prevent="submitForm" class="space-y-4">
+                            <div class="space-y-2">
+                                <Label for="nama_merek">
+                                    Nama Merek <span class="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    v-model="form.nama_merek"
+                                    id="nama_merek"
+                                    placeholder="Masukkan nama merek"
+                                    required
+                                    :disabled="isSubmitting"
+                                />
+                            </div>
 
-                        <div class="space-y-2">
-                            <Label for="deskripsi_kategori">
-                                Deskripsi Kategori <span class="text-destructive">*</span>
-                            </Label>
-                            <Textarea v-model="form.deskripsi_merek" id="deskripsi_kategori"
-                                placeholder="Masukkan deskripsi kategori" rows="4" />
-                        </div>
-                        <div class="flex gap-3 pt-2">
-                            <Button type="submit" :disabled="isSubmitting">
+                            <div class="space-y-2">
+                                <Label for="deskripsi_merek">
+                                    Deskripsi Merek <span class="text-destructive">*</span>
+                                </Label>
+                                <Textarea
+                                    v-model="form.deskripsi_merek"
+                                    id="deskripsi_merek"
+                                    placeholder="Masukkan deskripsi merek"
+                                    rows="4"
+                                    required
+                                    :disabled="isSubmitting"
+                                />
+                            </div>
+                        </form>
+                        <DialogFooter class="mt-4">
+                            <Button v-if="editingId" @click="isFormDialogOpen = false; resetForm()" type="button" variant="outline" :disabled="isSubmitting">
+                                <X class="w-4 h-4 mr-2" />
+                                Batal
+                            </Button>
+                            <Button @click="submitForm" :disabled="isSubmitting">
                                 <Check class="w-4 h-4 mr-2" />
                                 {{ editingId ? 'Update' : 'Simpan' }}
                                 <span v-if="isSubmitting" class="ml-2">
@@ -189,17 +232,11 @@ const truncateText = (text: string, maxLength: number) => {
                                     </span>
                                 </span>
                             </Button>
-                            <Button v-if="editingId" @click="resetForm" type="button" variant="outline"
-                                :disabled="isSubmitting">
-                                <X class="w-4 h-4 mr-2" />
-                                Batal
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
 
-            <!-- Table Card -->
             <Card>
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
@@ -210,22 +247,25 @@ const truncateText = (text: string, maxLength: number) => {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border">
+                    <div class="rounded-md border relative overflow-x-auto">
                         <Table>
-                            <TableHeader>
+                            <TableHeader class="sticky top-0 bg-background z-10">
                                 <TableRow>
-                                     <TableHead class="w-[30%]">Nama Merek</TableHead>
-                                    <TableHead class="w-[50%]">Deskripsi Kategori</TableHead>
+                                    <TableHead class="w-[30%]">Nama Merek</TableHead>
+                                    <TableHead class="w-[50%]">Deskripsi Merek</TableHead>
                                     <TableHead class="text-right">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <template v-if="isLoading">
-                                    <TableRow v-for="i in 3" :key="i">
-                                        <TableCell>
+                                    <TableRow v-for="i in 5" :key="i">
+                                        <TableCell class="py-3">
                                             <Skeleton class="h-4 w-[200px]" />
                                         </TableCell>
-                                        <TableCell class="flex justify-end gap-2">
+                                        <TableCell class="py-3">
+                                            <Skeleton class="h-4 w-[300px]" />
+                                        </TableCell>
+                                        <TableCell class="flex justify-end gap-2 py-3">
                                             <Skeleton class="h-8 w-8" />
                                             <Skeleton class="h-8 w-8" />
                                         </TableCell>
@@ -253,8 +293,8 @@ const truncateText = (text: string, maxLength: number) => {
                                             </Button>
                                         </TableCell>
                                     </TableRow>
-                                    <TableRow v-if="merek.length === 0 && !isLoading">
-                                        <TableCell colspan="2" class="text-center text-muted-foreground py-8">
+                                    <TableRow v-if="merek.length === 0">
+                                        <TableCell colspan="3" class="text-center text-muted-foreground py-8">
                                             Tidak ada data merek
                                         </TableCell>
                                     </TableRow>

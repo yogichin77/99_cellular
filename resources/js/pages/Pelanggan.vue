@@ -207,7 +207,13 @@ const submitForm = async () => {
         await fetchpelanggan(); // Selalu fetch data setelah operasi (baik online maupun offline)
     } catch (error: any) {
         console.error('Failed to save customer:', error);
-        showError('Gagal menyimpan data pelanggan');
+        let errorMessage = 'Gagal menyimpan data pelanggan';
+        if (error.response && error.response.data && error.response.data.errors) {
+            // Handle validation errors from Laravel
+            const errors = error.response.data.errors;
+            errorMessage = Object.values(errors).flat().join('\n');
+        }
+        showError(errorMessage);
     } finally {
         isSubmitting.value = false;
     }
@@ -332,36 +338,41 @@ onMounted(async () => {
                     Anda sedang online. Mengirim {{ offlineQueue.length }} operasi yang tertunda...
                 </span>
                 <span v-else>
-                    Anda sedang offline. Data akan disinkronkan saat online kembali. ({{ offlineQueue.length }} operasi tertunda)
+                    Anda sedang offline. Data akan disinkronkan saat online kembali. ({{ offlineQueue.length }} operasi
+                    tertunda)
                 </span>
             </div>
 
             <Card>
-                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader class="
+                    sticky top-0 z-20 bg-background
+                    flex flex-col md:flex-row items-start md:items-center justify-between
+                    space-y-2 md:space-y-0 pb-4 pt-0
+                    border-b
+                ">
                     <CardTitle class="flex items-center gap-2">
                         Daftar Pelanggan
                         <Badge variant="outline" class="px-2 py-1">
                             {{ filteredPelanggan.length }} data
                         </Badge>
                     </CardTitle>
-                    <div class="flex items-center gap-4">
-                        <div class="relative w-full max-w-sm">
+                    <div class="flex flex-col md:flex-row items-end md:items-center gap-3 w-full md:w-auto">
+                        <div class="relative w-full md:max-w-sm">
                             <Input
                                 v-model="searchQuery"
                                 placeholder="Cari pelanggan..."
-                                class="pl-8"
+                                class="pl-8 w-full"
                             />
                             <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         </div>
-                        <Button @click="openAddCustomerDialog">
+                        <Button @click="openAddCustomerDialog" class="w-full md:w-auto">
                             <PlusCircle class="w-4 h-4 mr-2" />
                             Tambah Pelanggan
                         </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border">
-                        <div class="max-h-[500px] overflow-y-auto">
+                    <div class="rounded-md border -mt-px"> <div class="hidden md:block max-h-[500px] overflow-y-auto">
                             <Table>
                                 <TableHeader class="sticky top-0 bg-white z-10">
                                     <TableRow>
@@ -374,20 +385,20 @@ onMounted(async () => {
                                 </TableHeader>
                                 <TableBody>
                                     <template v-if="isLoading">
-                                        <TableRow v-for="i in 3" :key="i">
-                                            <TableCell>
+                                        <TableRow v-for="i in 5" :key="i">
+                                            <TableCell class="py-3">
                                                 <Skeleton class="h-4 w-[120px]" />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell class="py-3">
                                                 <Skeleton class="h-4 w-[100px]" />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell class="py-3">
                                                 <Skeleton class="h-4 w-[150px]" />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell class="py-3">
                                                 <Skeleton class="h-4 w-[200px]" />
                                             </TableCell>
-                                            <TableCell class="flex justify-end gap-2">
+                                            <TableCell class="flex justify-end gap-2 py-3">
                                                 <Skeleton class="h-8 w-8" />
                                                 <Skeleton class="h-8 w-8" />
                                             </TableCell>
@@ -426,7 +437,7 @@ onMounted(async () => {
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
-                                        <TableRow v-if="filteredPelanggan.length === 0 && !isLoading">
+                                        <TableRow v-if="filteredPelanggan.length === 0">
                                             <TableCell :colspan="5" class="text-center text-muted-foreground py-8">
                                                 Tidak ada data pelanggan yang cocok dengan pencarian Anda.
                                             </TableCell>
@@ -435,13 +446,65 @@ onMounted(async () => {
                                 </TableBody>
                             </Table>
                         </div>
+
+                        <div class="block md:hidden space-y-4">
+                            <template v-if="isLoading">
+                                <Card v-for="i in 3" :key="i" class="p-4">
+                                    <Skeleton class="h-6 w-3/4 mb-2" />
+                                    <Skeleton class="h-4 w-1/2 mb-1" />
+                                    <Skeleton class="h-4 w-2/3 mb-1" />
+                                    <Skeleton class="h-4 w-full" />
+                                    <div class="flex justify-end gap-2 mt-3">
+                                        <Skeleton class="h-8 w-1/4" />
+                                        <Skeleton class="h-8 w-1/4" />
+                                    </div>
+                                </Card>
+                            </template>
+                            <template v-else>
+                                <Card v-for="item in filteredPelanggan" :key="item.id" class="p-4 shadow-sm">
+                                    <CardHeader class="p-0 pb-2">
+                                        <CardTitle class="text-lg flex items-center justify-between">
+                                            <span>
+                                                {{ item.nama_pelanggan }}
+                                                <Badge v-if="typeof item.id === 'string' && item.id.startsWith('offline-')" variant="secondary" class="ml-1">Offline New</Badge>
+                                            </span>
+                                            <div class="flex gap-1">
+                                                <Button @click="editpelanggan(item)" variant="ghost" size="icon" title="Edit" class="h-8 w-8">
+                                                    <Pencil class="h-4 w-4" />
+                                                </Button>
+                                                <Button @click="deletepelanggan(item.id)" variant="ghost" size="icon" title="Hapus" class="h-8 w-8 text-destructive hover:text-destructive">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent class="p-0 text-sm text-muted-foreground">
+                                        <div class="flex items-center mb-1">
+                                            <Phone class="h-4 w-4 mr-2 text-primary" />
+                                            <span>{{ item.no_handphone }}</span>
+                                        </div>
+                                        <div class="flex items-start mb-1">
+                                            <Store class="h-4 w-4 mr-2 text-primary flex-shrink-0 mt-1" />
+                                            <span>{{ item.nama_toko || '-' }}</span>
+                                        </div>
+                                        <div class="flex items-start">
+                                            <MapPin class="h-4 w-4 mr-2 text-primary flex-shrink-0 mt-1" />
+                                            <span>{{ item.alamat || '-' }}</span>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <div v-if="filteredPelanggan.length === 0 && !isLoading" class="text-center text-muted-foreground py-8">
+                                    Tidak ada data pelanggan yang cocok dengan pencarian Anda.
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
         </div>
 
         <Dialog v-model:open="showDialog" @update:open="val => { if (!val) resetForm() }">
-            <DialogContent class="sm:max-w-[425px]">
+            <DialogContent class="sm:max-w-[425px] overflow-y-auto max-h-[90vh]">
                 <DialogHeader>
                     <DialogTitle>{{ editingId ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru' }}</DialogTitle>
                     <DialogDescription>
@@ -506,7 +569,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* (Gaya CSS tetap sama) */
 .loading-dots {
     display: inline-flex;
     gap: 2px;
@@ -530,18 +592,17 @@ onMounted(async () => {
 }
 
 @keyframes blink {
-
     0%,
     100% {
         opacity: 0.2;
     }
-
     50% {
         opacity: 1;
     }
 }
 
-@media (max-width: 640px) {
+/* Ensure actions are always visible on smaller screens */
+@media (max-width: 767px) { /* Adjust breakpoint as needed, typically 'md' breakpoint in Tailwind */
     .group-hover\:opacity-100 {
         opacity: 1 !important;
     }

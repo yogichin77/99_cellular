@@ -15,6 +15,15 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea/';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'; // Import Dialog components
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Kategori', href: '/kategori' }
@@ -28,6 +37,7 @@ const form = ref({
 });
 const editingId = ref<number | null>(null);
 const isLoading = ref(false);
+const isFormDialogOpen = ref(false); // State to control the dialog visibility
 
 // Fetch data
 const fetchkategori = async () => {
@@ -55,6 +65,7 @@ const submitForm = async () => {
             Swal.fire('Berhasil!', 'Kategori berhasil ditambahkan', 'success');
         }
         resetForm();
+        isFormDialogOpen.value = false; // Close the dialog after successful submission
         await fetchkategori();
     } catch (error: any) {
         console.error('Error saving category:', error);
@@ -80,6 +91,7 @@ const editkategori = (item: any) => {
         deskripsi_kategori: item.deskripsi_kategori,
     };
     editingId.value = item.id;
+    isFormDialogOpen.value = true; // Open the dialog when editing
 };
 
 // Delete category
@@ -116,9 +128,10 @@ const resetForm = () => {
         deskripsi_kategori: '',
     };
     editingId.value = null;
+    // Do not close the dialog here, let @update:open handle it when user explicitly closes
 };
 
-// Fungsi untuk membatasi teks
+// Function to truncate text
 const truncateText = (text: string, maxLength: number) => {
     if (text && text.length > maxLength) {
         return text.substring(0, maxLength) + '...';
@@ -133,41 +146,55 @@ onMounted(fetchkategori);
     <Head title="Kategori" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <Card class="mb-6">
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <PlusCircle class="w-5 h-5" />
-                        {{ editingId ? 'Edit Kategori' : 'Tambah Kategori Baru' }}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitForm" class="space-y-4">
-                        <div class="space-y-2">
-                            <Label for="nama_kategori">
-                                Nama Kategori <span class="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                v-model="form.nama_kategori"
-                                id="nama_kategori"
-                                placeholder="Masukkan nama kategori"
-                                required
-                            />
-                        </div>
+            <div class="mb-4 flex justify-end">
+                <Dialog v-model:open="isFormDialogOpen" @update:open="val => { if (!val) resetForm() }">
+                    <DialogTrigger as-child>
+                        <Button @click="resetForm">
+                            <PlusCircle class="w-4 h-4 mr-2" />
+                            Tambah Kategori Baru
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent class="sm:max-w-[500px] overflow-y-auto max-h-[90vh]">
+                        <DialogHeader>
+                            <DialogTitle>{{ editingId ? 'Edit Kategori' : 'Tambah Kategori Baru' }}</DialogTitle>
+                            <DialogDescription>
+                                Lengkapi detail kategori di bawah ini. Klik simpan saat Anda selesai.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form @submit.prevent="submitForm" class="space-y-4">
+                            <div class="space-y-2">
+                                <Label for="nama_kategori">
+                                    Nama Kategori <span class="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    v-model="form.nama_kategori"
+                                    id="nama_kategori"
+                                    placeholder="Masukkan nama kategori"
+                                    required
+                                    :disabled="isLoading"
+                                />
+                            </div>
 
-                        <div class="space-y-2">
-                            <Label for="deskripsi_kategori">
-                                Deskripsi Kategori <span class="text-destructive">*</span>
-                            </Label>
-                            <Textarea
-                                v-model="form.deskripsi_kategori"
-                                id="deskripsi_kategori"
-                                placeholder="Masukkan deskripsi kategori"
-                                rows="4"
-                                required
-                            />
-                        </div>
-                        <div class="flex gap-3 pt-2">
-                            <Button type="submit" :disabled="isLoading">
+                            <div class="space-y-2">
+                                <Label for="deskripsi_kategori">
+                                    Deskripsi Kategori <span class="text-destructive">*</span>
+                                </Label>
+                                <Textarea
+                                    v-model="form.deskripsi_kategori"
+                                    id="deskripsi_kategori"
+                                    placeholder="Masukkan deskripsi kategori"
+                                    rows="4"
+                                    required
+                                    :disabled="isLoading"
+                                />
+                            </div>
+                        </form>
+                        <DialogFooter class="mt-4">
+                            <Button v-if="editingId" @click="isFormDialogOpen = false; resetForm()" type="button" variant="outline" :disabled="isLoading">
+                                <X class="w-4 h-4 mr-2" />
+                                Batal
+                            </Button>
+                            <Button @click="submitForm" :disabled="isLoading">
                                 <Check class="w-4 h-4 mr-2" />
                                 {{ editingId ? 'Update' : 'Simpan' }}
                                 <span v-if="isLoading" class="ml-2">
@@ -176,19 +203,10 @@ onMounted(fetchkategori);
                                     </span>
                                 </span>
                             </Button>
-                            <Button
-                                v-if="editingId"
-                                @click="resetForm"
-                                type="button"
-                                variant="outline"
-                            >
-                                <X class="w-4 h-4 mr-2" />
-                                Batal
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
 
             <Card>
                 <CardHeader>
@@ -200,9 +218,9 @@ onMounted(fetchkategori);
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border overflow-x-auto">
+                    <div class="rounded-md border relative overflow-x-auto">
                         <Table>
-                            <TableHeader>
+                            <TableHeader class="sticky top-0 bg-background z-10">
                                 <TableRow>
                                     <TableHead class="w-[30%]">Nama Kategori</TableHead>
                                     <TableHead class="w-[50%]">Deskripsi Kategori</TableHead>

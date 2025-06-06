@@ -18,7 +18,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 // Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
   {
-    title: 'Datatransaksi',
+    title: 'Data transaksi',
     href: 'datatransaksi',
   },
 ];
@@ -337,8 +337,6 @@ onMounted(() => {
   <Head title="Data Transaksi" />
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <h2 class="text-2xl font-bold tracking-tight">Data Transaksi</h2>
-
       <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
         <div class="relative w-full md:w-1/3">
           <Input type="text" placeholder="Cari transaksi (ID, pelanggan, toko)..." v-model="searchTerm" class="pl-10" />

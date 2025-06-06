@@ -11,12 +11,23 @@ import { computed, onMounted, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// Import Dialog components
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea/';
+
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Produk', href: '/produk' }];
 
 // State
@@ -28,6 +39,7 @@ const searchTerm = ref('');
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isDragging = ref(false);
+const isDialogOpen = ref(false); // State untuk mengontrol dialog
 
 // Form state
 const form = ref({
@@ -101,16 +113,17 @@ const handleFileUpload = (event: Event) => {
   }
 };
 
-// Filter produk
-const filteredProduk = computed(() => {
-  if (!searchTerm.value.trim()) return produk.value;
-
+// Filter produk dan batasi 20 item
+const displayedProduk = computed(() => {
   const lowerCaseSearchTerm = searchTerm.value.toLowerCase();
 
-  return produk.value.filter(item =>
+  const filtered = produk.value.filter(item =>
     item.nama_produk.toLowerCase().includes(lowerCaseSearchTerm) ||
-    (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) // Tambahkan kondisi ini
+    (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) ||
+    (item.deskripsi_produk && item.deskripsi_produk.toLowerCase().includes(lowerCaseSearchTerm))
   );
+
+  return filtered.slice(0, 20); // Batasi hingga 20 item
 });
 
 // Format currency
@@ -126,10 +139,6 @@ const formatCurrency = (value: number) => {
 const submitForm = async () => {
   try {
     isSubmitting.value = true;
-    console.log({
-      id_kategori: form.value.id_kategori,
-      id_merek: form.value.id_merek
-    });
     const formData = new FormData();
     formData.append('nama_produk', form.value.nama_produk);
     formData.append('id_kategori', String(form.value.id_kategori));
@@ -137,7 +146,7 @@ const submitForm = async () => {
     formData.append('harga_modal', String(form.value.harga_modal));
     formData.append('harga_jual', String(form.value.harga_jual));
     formData.append('jumlah_stok', String(form.value.jumlah_stok));
-    formData.append('deskrisi_produk', String(form.value.deskripsi_produk));
+    formData.append('deskripsi_produk', String(form.value.deskripsi_produk));
     formData.append('barcode', form.value.barcode);
 
     if (form.value.gambar_produk instanceof File) {
@@ -158,6 +167,7 @@ const submitForm = async () => {
 
     resetForm();
     await fetchproduk();
+    isDialogOpen.value = false; // Tutup dialog setelah submit
   } catch (error) {
     handleError(error);
   } finally {
@@ -175,11 +185,12 @@ const editProduk = (item: any) => {
     harga_jual: item.harga_jual,
     jumlah_stok: item.jumlah_stok,
     gambar_produk: item.gambar_produk || null,
-    deskripsi_produk: item.deskripsi_produk || null,
+    deskripsi_produk: item.deskripsi_produk || '',
     previewImage: item.gambar_produk ? `/storage/${item.gambar_produk}` : '',
     barcode: item.barcode || '',
   };
   editingId.value = item.id;
+  isDialogOpen.value = true; // Buka dialog saat edit
 };
 
 // Delete produk
@@ -221,6 +232,7 @@ const resetForm = () => {
     barcode: '',
   };
   editingId.value = null;
+  // isDialogOpen.value = false; // Optionally close dialog on reset if not used for 'Cancel'
 };
 
 // Handle error
@@ -261,20 +273,18 @@ const showError = (message: string) => {
 
 onMounted(fetchproduk);
 
-const truncateText = (text: string, maxLength: number) => {
+const truncateText = (text: string | null | undefined, maxLength: number) => {
   if (text && text.length > maxLength) {
     return text.substring(0, maxLength) + '...';
   }
-  return text;
+  return text || '';
 };
 </script>
 
 <template>
-
   <Head title="Produk" />
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-      <!-- Search Section -->
       <Card class="mb-4">
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
@@ -282,7 +292,7 @@ const truncateText = (text: string, maxLength: number) => {
             Cari Produk
           </CardTitle>
         </CardHeader>
-        <CardContent c>
+        <CardContent>
           <div class="relative max-w-md">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search class="h-5 w-5 text-muted-foreground" />
@@ -292,164 +302,139 @@ const truncateText = (text: string, maxLength: number) => {
         </CardContent>
       </Card>
 
-      <!-- Form Section -->
-      <Card class="mb-4">
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <PlusCircle class="w-5 h-5" />
-            {{ editingId ? 'Edit Produk' : 'Tambah Produk Baru' }}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Left Column -->
-            <div class="space-y-4">
-
-              <div class="space-y-2">
-                <Label for="barcode">
-                  Barcode
-                </Label>
-                <Input v-model.trim="form.barcode" id="barcode" placeholder="Scan atau masukkan barcode"
-                  :disabled="isSubmitting" />
-              </div>
-              <!-- Nama Produk -->
-              <div class="space-y-2">
-                <Label for="nama_produk">
-                  Nama Produk <span class="text-destructive">*</span>
-                </Label>
-                <Input v-model.trim="form.nama_produk" id="nama_produk" placeholder="Nama produk" required
-                  :disabled="isSubmitting" />
-              </div>
-
-              <!-- Kategori dan Merek -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="mb-4 text-right">
+        <Dialog :open="isDialogOpen" @update:open="isDialogOpen = $event">
+          <DialogTrigger as-child>
+            <Button @click="resetForm(); isDialogOpen = true;">
+              <PlusCircle class="w-4 h-4 mr-2" />
+              Tambah Produk Baru
+            </Button>
+          </DialogTrigger>
+          <DialogContent class="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{{ editingId ? 'Edit Produk' : 'Tambah Produk Baru' }}</DialogTitle>
+              <DialogDescription>
+                Lengkapi detail produk. Klik simpan saat Anda selesai.
+              </DialogDescription>
+            </DialogHeader>
+            <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <div class="space-y-4">
                 <div class="space-y-2">
-                  <Label for="id_kategori">
-                    Kategori <span class="text-destructive">*</span>
-                  </Label>
-                  <Select v-model="form.id_kategori" required :disabled="isSubmitting">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="kategori in kategoris" :key="kategori.id" :value="kategori.id">
-                        {{ kategori.nama_kategori }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label for="barcode">Barcode</Label>
+                  <Input v-model.trim="form.barcode" id="barcode" placeholder="Scan atau masukkan barcode"
+                    :disabled="isSubmitting" />
                 </div>
-
                 <div class="space-y-2">
-                  <Label for="id_merek">
-                    Merek <span class="text-destructive">*</span>
-                  </Label>
-                  <Select v-model="form.id_merek" required :disabled="isSubmitting">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Merek" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem v-for="merek in mereks" :key="merek.id" :value="merek.id">
-                        {{ merek.nama_merek }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label for="nama_produk">Nama Produk <span class="text-destructive">*</span></Label>
+                  <Input v-model.trim="form.nama_produk" id="nama_produk" placeholder="Nama produk" required
+                    :disabled="isSubmitting" />
                 </div>
-              </div>
-
-              <!-- Harga Inputs -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-2">
-                  <Label for="harga_modal">
-                    Harga Modal <span class="text-destructive">*</span>
-                  </Label>
-                  <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Rp</span>
-                    <Input v-model.number="form.harga_modal" id="harga_modal" type="number" min="0" step="1000" required
-                      class="pl-10" :disabled="isSubmitting" />
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label for="id_kategori">Kategori <span class="text-destructive">*</span></Label>
+                    <Select v-model="form.id_kategori" required :disabled="isSubmitting">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Kategori" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem v-for="kategori in kategoris" :key="kategori.id" :value="kategori.id">
+                          {{ kategori.nama_kategori }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div class="space-y-2">
+                    <Label for="id_merek">Merek <span class="text-destructive">*</span></Label>
+                    <Select v-model="form.id_merek" required :disabled="isSubmitting">
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih Merek" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem v-for="merek in mereks" :key="merek.id" :value="merek.id">
+                          {{ merek.nama_merek }}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-
-                <div class="space-y-2">
-                  <Label for="harga_jual">
-                    Harga Jual <span class="text-destructive">*</span>
-                  </Label>
-                  <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Rp</span>
-                    <Input v-model.number="form.harga_jual" id="harga_jual" type="number" min="0" step="1000" required
-                      class="pl-10" :disabled="isSubmitting" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Stok -->
-              <div class="space-y-2">
-                <Label for="jumlah_stok">
-                  Jumlah Stok <span class="text-destructive">*</span>
-                </Label>
-                <Input v-model.number="form.jumlah_stok" id="jumlah_stok" type="number" min="0" required
-                  :disabled="isSubmitting" />
-              </div>
-
-              <div class="space-y-2">
-                <Label for="deskripsi_kategori">
-                  Deskripsi Produk <span class="text-destructive">*</span>
-                </Label>
-                <Textarea v-model="form.deskripsi_produk" id="deskripsi_kategori"
-                  placeholder="Masukkan deskripsi kategori" rows="4" />
-              </div>
-            </div>
-
-            <!-- Right Column - Image Upload -->
-            <div class="space-y-4">
-              <div class="space-y-2">
-                <Label>Gambar Produk</Label>
-                <div @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
-                  :class="{ 'border-primary bg-primary/5': isDragging }"
-                  class="border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer">
-                  <label class="flex flex-col items-center justify-center space-y-2">
-                    <div class="relative w-full">
-                      <!-- Image Preview -->
-                      <div v-if="form.previewImage" class="flex justify-center mb-4">
-                        <img :src="form.previewImage" alt="Preview Gambar Produk"
-                          class="h-48 w-48 rounded-lg object-cover border">
-                      </div>
-                      <div v-else class="flex flex-col items-center justify-center py-8">
-                        <ImageIcon class="w-12 h-12 text-muted-foreground mb-2" />
-                        <p class="text-sm text-muted-foreground text-center">
-                          <span class="font-medium text-primary">Klik untuk upload</span> atau drag and drop
-                        </p>
-                        <p class="text-xs text-muted-foreground mt-1">
-                          PNG, JPG (Maks. 2MB)
-                        </p>
-                      </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <Label for="harga_modal">Harga Modal <span class="text-destructive">*</span></Label>
+                    <div class="relative">
+                      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Rp</span>
+                      <Input v-model.number="form.harga_modal" id="harga_modal" type="number" min="0" step="1000"
+                        required class="pl-10" :disabled="isSubmitting" />
                     </div>
-                    <input type="file" @change="handleFileUpload" accept="image/*" class="hidden" id="file-upload">
-                  </label>
+                  </div>
+                  <div class="space-y-2">
+                    <Label for="harga_jual">Harga Jual <span class="text-destructive">*</span></Label>
+                    <div class="relative">
+                      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">Rp</span>
+                      <Input v-model.number="form.harga_jual" id="harga_jual" type="number" min="0" step="1000" required
+                        class="pl-10" :disabled="isSubmitting" />
+                    </div>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <Label for="jumlah_stok">Jumlah Stok <span class="text-destructive">*</span></Label>
+                  <Input v-model.number="form.jumlah_stok" id="jumlah_stok" type="number" min="0" required
+                    :disabled="isSubmitting" />
+                </div>
+                <div class="space-y-2">
+                  <Label for="deskripsi_produk">Deskripsi Produk <span class="text-destructive">*</span></Label>
+                  <Textarea v-model="form.deskripsi_produk" id="deskripsi_produk"
+                    placeholder="Masukkan deskripsi produk" rows="4" :disabled="isSubmitting" />
                 </div>
               </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="md:col-span-2 flex justify-end gap-3 pt-4">
-              <Button v-if="editingId" @click="resetForm" type="button" variant="outline" :disabled="isSubmitting">
-                <X class="w-4 h-4 mr-2" />
-                Batal
-              </Button>
-              <Button type="submit" :disabled="isSubmitting">
-                <Check class="w-4 h-4 mr-2" />
-                {{ editingId ? 'Update Produk' : 'Tambah Produk' }}
-                <span v-if="isSubmitting" class="ml-2">
-                  <span class="loading-dots">
-                    <span>.</span><span>.</span><span>.</span>
+              <div class="space-y-4">
+                <div class="space-y-2">
+                  <Label>Gambar Produk</Label>
+                  <div @dragover="handleDragOver" @dragleave="handleDragLeave" @drop="handleDrop"
+                    :class="{ 'border-primary bg-primary/5': isDragging }"
+                    class="border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer">
+                    <label class="flex flex-col items-center justify-center space-y-2">
+                      <div class="relative w-full">
+                        <div v-if="form.previewImage" class="flex justify-center mb-4">
+                          <img :src="form.previewImage" alt="Preview Gambar Produk"
+                            class="h-48 w-48 rounded-lg object-cover border">
+                        </div>
+                        <div v-else class="flex flex-col items-center justify-center py-8">
+                          <ImageIcon class="w-12 h-12 text-muted-foreground mb-2" />
+                          <p class="text-sm text-muted-foreground text-center">
+                            <span class="font-medium text-primary">Klik untuk upload</span> atau drag and drop
+                          </p>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            PNG, JPG (Maks. 2MB)
+                          </p>
+                        </div>
+                      </div>
+                      <input type="file" @change="handleFileUpload" accept="image/*" class="hidden" id="file-upload"
+                        :disabled="isSubmitting">
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter class="md:col-span-2 pt-4 flex justify-end gap-3">
+                <Button type="button" variant="outline" @click="resetForm(); isDialogOpen = false;"
+                  :disabled="isSubmitting">
+                  <X class="w-4 h-4 mr-2" />
+                  Batal
+                </Button>
+                <Button type="submit" :disabled="isSubmitting">
+                  <Check class="w-4 h-4 mr-2" />
+                  {{ editingId ? 'Update Produk' : 'Tambah Produk' }}
+                  <span v-if="isSubmitting" class="ml-2">
+                    <span class="loading-dots">
+                      <span>.</span><span>.</span><span>.</span>
+                    </span>
                   </span>
-                </span>
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
-      <!-- Table Section -->
       <Card>
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
@@ -460,10 +445,8 @@ const truncateText = (text: string, maxLength: number) => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div class="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
+          <div class="rounded-md border relative overflow-x-auto" style="max-height: 70vh;"> <Table class="min-w-full">
+              <TableHeader class="sticky top-0 bg-background z-10"> <TableRow>
                   <TableHead class="w-[100px]">Gambar</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead>Produk</TableHead>
@@ -472,7 +455,7 @@ const truncateText = (text: string, maxLength: number) => {
                   <TableHead class="text-right">Harga Modal</TableHead>
                   <TableHead class="text-right">Harga Jual</TableHead>
                   <TableHead class="text-right">Stok</TableHead>
-                  <TableHead class="w-[50%]">Deskripsi Produk</TableHead>
+                  <TableHead class="w-[200px]">Deskripsi Produk</TableHead>
                   <TableHead class="text-right">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -504,7 +487,7 @@ const truncateText = (text: string, maxLength: number) => {
                       <Skeleton class="h-4 w-[40px] ml-auto" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton class="h-4 w-[40px] ml-auto" />
+                      <Skeleton class="h-4 w-[150px]" />
                     </TableCell>
                     <TableCell class="flex justify-end gap-2">
                       <Skeleton class="h-8 w-8" />
@@ -513,14 +496,14 @@ const truncateText = (text: string, maxLength: number) => {
                   </TableRow>
                 </template>
                 <template v-else>
-                  <TableRow v-for="item in filteredProduk" :key="item.id"
+                  <TableRow v-for="item in displayedProduk" :key="item.id"
                     class="group hover:bg-muted/50 transition-colors">
                     <TableCell>
                       <img :src="item.gambar_produk ? `../storage/${item.gambar_produk}` : '/placeholder-product.jpg'"
                         alt="Produk" class="h-12 w-12 rounded-lg object-cover border">
                     </TableCell>
                     <TableCell class="font-medium">
-                        {{ item.barcode || '-' }}
+                      {{ item.barcode || '-' }}
                     </TableCell>
                     <TableCell class="font-medium">
                       {{ item.nama_produk }}
@@ -562,8 +545,8 @@ const truncateText = (text: string, maxLength: number) => {
                       </Button>
                     </TableCell>
                   </TableRow>
-                  <TableRow v-if="filteredProduk.length === 0 && !isLoading">
-                    <TableCell colspan="8" class="text-center text-muted-foreground py-8">
+                  <TableRow v-if="displayedProduk.length === 0 && !isLoading">
+                    <TableCell colspan="10" class="text-center text-muted-foreground py-8">
                       Tidak ada produk yang ditemukan
                     </TableCell>
                   </TableRow>
@@ -612,9 +595,26 @@ const truncateText = (text: string, maxLength: number) => {
   }
 }
 
+/* Ensure action buttons are always visible on small screens */
 @media (max-width: 640px) {
   .group-hover\:opacity-100 {
     opacity: 1 !important;
   }
+}
+
+/* Custom styling for sticky table header */
+.rounded-md.border {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.rounded-md.border .sticky {
+  background-color: var(--background); /* Ensure it matches your theme's background */
+}
+
+/* Override default table cell padding for sticky header if needed */
+.sticky th {
+  padding-top: 0.75rem; /* Equivalent to py-3 */
+  padding-bottom: 0.75rem; /* Equivalent to py-3 */
 }
 </style>
