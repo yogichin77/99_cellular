@@ -18,6 +18,12 @@ class DetailTransaksi extends Model
         'total_harga',
     ];
 
+       protected $casts = [
+        'jumlah' => 'integer',
+        'harga_satuan' => 'decimal:2',
+        'total_harga' => 'decimal:2',
+    ];
+
     public function transaksi()
     {
         return $this->belongsTo(Transaksi::class, 'id_transaksi');

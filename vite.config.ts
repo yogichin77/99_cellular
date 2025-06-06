@@ -4,13 +4,14 @@ import path from 'path';
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
-import { VitePWA } from 'vite-plugin-pwa'; // <- Tambahkan ini
+import { VitePWA } from 'vite-plugin-pwa'; 
 
 export default defineConfig({
     plugins: [
         laravel({
             input: ['resources/js/app.ts'],
             ssr: 'resources/js/ssr.ts',
+            
             refresh: true,
         }),
         tailwindcss(),

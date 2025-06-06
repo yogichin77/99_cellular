@@ -16,6 +16,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'; // Import Dialog components
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'User', href: '/user' }];
 
@@ -25,6 +26,7 @@ const editingId = ref<number | null>(null);
 const searchTerm = ref('');
 const isLoading = ref(false);
 const isSubmitting = ref(false);
+const isDialogOpen = ref(false); // State untuk mengontrol buka/tutup dialog
 
 // Form state
 const form = ref({
@@ -59,6 +61,25 @@ const filteredUsers = computed(() => {
     );
 });
 
+// Open dialog for creating new user
+const openCreateDialog = () => {
+    resetForm();
+    isDialogOpen.value = true;
+};
+
+// Open dialog for editing user
+const openEditDialog = (item: any) => {
+    form.value = {
+        name: item.name,
+        email: item.email,
+        role: item.role,
+        password: '',
+        password_confirmation: ''
+    };
+    editingId.value = item.id;
+    isDialogOpen.value = true;
+};
+
 // Submit form
 const submitForm = async () => {
     try {
@@ -88,6 +109,7 @@ const submitForm = async () => {
             showSuccess('User berhasil ditambahkan');
         }
 
+        isDialogOpen.value = false; // Tutup dialog setelah submit
         resetForm();
         await fetchUsers();
     } catch (error) {
@@ -95,18 +117,6 @@ const submitForm = async () => {
     } finally {
         isSubmitting.value = false;
     }
-};
-
-// Edit user
-const editUser = (item: any) => {
-    form.value = {
-        name: item.name,
-        email: item.email,
-        role: item.role,
-        password: '',
-        password_confirmation: ''
-    };
-    editingId.value = item.id;
 };
 
 // Delete user
@@ -222,137 +232,126 @@ onMounted(fetchUsers);
 </script>
 
 <template>
-
     <Head title="User" />
     <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <!-- Search Section -->
+        <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
             <Card class="mb-4">
-                <CardHeader>
+                <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle class="flex items-center gap-2">
                         <Search class="w-5 h-5" />
-                        Cari User
+                        Manajemen User
                     </CardTitle>
+                    <Dialog :open="isDialogOpen" @update:open="isDialogOpen = $event">
+                        <DialogTrigger as-child>
+                            <Button @click="openCreateDialog">
+                                <PlusCircle class="w-4 h-4 mr-2" />
+                                Tambah User Baru
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent class="sm:max-w-[425px] md:max-w-[700px]">
+                            <DialogHeader>
+                                <DialogTitle>{{ editingId ? 'Edit User' : 'Tambah User Baru' }}</DialogTitle>
+                                <DialogDescription>
+                                    {{ editingId ? 'Ubah informasi user yang sudah ada.' : 'Tambahkan user baru ke dalam sistem.' }}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                                <div class="space-y-4">
+                                    <div class="space-y-2">
+                                        <Label for="name">
+                                            Nama <span class="text-destructive">*</span>
+                                        </Label>
+                                        <Input v-model.trim="form.name" id="name" placeholder="Nama user" required
+                                            :disabled="isSubmitting" />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <Label for="email">
+                                            Email <span class="text-destructive">*</span>
+                                        </Label>
+                                        <Input v-model.trim="form.email" id="email" type="email" placeholder="Email user"
+                                            required :disabled="isSubmitting" />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <Label for="role">
+                                            Role <span class="text-destructive">*</span>
+                                        </Label>
+                                        <Select v-model="form.role" required :disabled="isSubmitting">
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Pilih Role" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="admin">Admin</SelectItem>
+                                                <SelectItem value="kasir">Kasir</SelectItem>
+                                                <SelectItem value="pramuniaga">Pramuniaga</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-4">
+                                    <div class="space-y-2">
+                                        <Label for="password">
+                                            Password {{ editingId ? '(Biarkan kosong jika tidak ingin mengubah)' : '' }}
+                                            <span v-if="!editingId" class="text-destructive">*</span>
+                                        </Label>
+                                        <Input v-model.trim="form.password" id="password" type="password" :required="!editingId"
+                                            :placeholder="editingId ? 'Kosongkan jika tidak diubah' : 'Password'"
+                                            :disabled="isSubmitting" />
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <Label for="password_confirmation">
+                                            Konfirmasi Password <span v-if="!editingId" class="text-destructive">*</span>
+                                        </Label>
+                                        <Input v-model.trim="form.password_confirmation" id="password_confirmation"
+                                            type="password" :required="!editingId"
+                                            :placeholder="editingId ? 'Kosongkan jika tidak diubah' : 'Konfirmasi Password'"
+                                            :disabled="isSubmitting" />
+                                    </div>
+                                </div>
+                                <DialogFooter class="md:col-span-2 flex justify-end gap-3 pt-4">
+                                    <Button v-if="editingId" @click="isDialogOpen = false; resetForm()" type="button" variant="outline"
+                                        :disabled="isSubmitting">
+                                        <X class="w-4 h-4 mr-2" />
+                                        Batal
+                                    </Button>
+                                    <Button type="submit" :disabled="isSubmitting">
+                                        <Check class="w-4 h-4 mr-2" />
+                                        {{ editingId ? 'Update User' : 'Tambah User' }}
+                                        <span v-if="isSubmitting" class="ml-2">
+                                            <span class="loading-dots">
+                                                <span>.</span><span>.</span><span>.</span>
+                                            </span>
+                                        </span>
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
                 </CardHeader>
                 <CardContent>
                     <div class="relative max-w-md">
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search class="h-5 w-5 text-muted-foreground" />
                         </div>
-                        <Input v-model.trim="searchTerm" type="search" placeholder="Cari user..." class="pl-10" />
+                        <Input v-model.trim="searchTerm" type="search" placeholder="Cari user berdasarkan nama atau email..." class="pl-10" />
                     </div>
                 </CardContent>
             </Card>
 
-            <!-- Form Section -->
-            <Card class="mb-4">
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <PlusCircle class="w-5 h-5" />
-                        {{ editingId ? 'Edit User' : 'Tambah User Baru' }}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Left Column -->
-                        <div class="space-y-4">
-                            <!-- Nama User -->
-                            <div class="space-y-2">
-                                <Label for="name">
-                                    Nama <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.name" id="name" placeholder="Nama user" required
-                                    :disabled="isSubmitting" />
-                            </div>
-
-                            <!-- Email -->
-                            <div class="space-y-2">
-                                <Label for="email">
-                                    Email <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.email" id="email" type="email" placeholder="Email user"
-                                    required :disabled="isSubmitting" />
-                            </div>
-
-                            <!-- Role -->
-                            <div class="space-y-2">
-                                <Label for="role">
-                                    Role <span class="text-destructive">*</span>
-                                </Label>
-                                <Select v-model="form.role" required :disabled="isSubmitting">
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Pilih Role" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                        <SelectItem value="kasir">Kasir</SelectItem>
-                                        <SelectItem value="pramuniaga">Pramuniaga</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-
-                        <!-- Right Column - Password -->
-                        <div class="space-y-4">
-                            <!-- Password -->
-                            <div class="space-y-2">
-                                <Label for="password">
-                                    Password {{ editingId ? '(Biarkan kosong jika tidak ingin mengubah)' : '' }}
-                                    <span v-if="!editingId" class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.password" id="password" type="password" :required="!editingId"
-                                    :placeholder="editingId ? 'Kosongkan jika tidak diubah' : 'Password'"
-                                    :disabled="isSubmitting" />
-                            </div>
-
-                            <!-- Konfirmasi Password -->
-                            <div class="space-y-2">
-                                <Label for="password_confirmation">
-                                    Konfirmasi Password <span v-if="!editingId" class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.password_confirmation" id="password_confirmation"
-                                    type="password" :required="!editingId"
-                                    :placeholder="editingId ? 'Kosongkan jika tidak diubah' : 'Konfirmasi Password'"
-                                    :disabled="isSubmitting" />
-                            </div>
-                        </div>
-
-                        <!-- Action Buttons -->
-                        <div class="md:col-span-2 flex justify-end gap-3 pt-4">
-                            <Button v-if="editingId" @click="resetForm" type="button" variant="outline"
-                                :disabled="isSubmitting">
-                                <X class="w-4 h-4 mr-2" />
-                                Batal
-                            </Button>
-                            <Button type="submit" :disabled="isSubmitting">
-                                <Check class="w-4 h-4 mr-2" />
-                                {{ editingId ? 'Update User' : 'Tambah User' }}
-                                <span v-if="isSubmitting" class="ml-2">
-                                    <span class="loading-dots">
-                                        <span>.</span><span>.</span><span>.</span>
-                                    </span>
-                                </span>
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-
-            <!-- Table Section -->
             <Card>
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         Daftar User
                         <Badge variant="outline" class="px-2 py-1">
-                            {{ users.length }} user
+                            {{ filteredUsers.length }} user
                         </Badge>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
+                    <div class="rounded-md border overflow-auto max-h-[calc(100vh-250px)]"> <Table class="min-w-full"> <TableHeader class="sticky top-0 bg-background z-10"> <TableRow>
                                     <TableHead>Nama</TableHead>
                                     <TableHead>Email</TableHead>
                                     <TableHead>Role</TableHead>
@@ -393,7 +392,7 @@ onMounted(fetchUsers);
                                         </TableCell>
                                         <TableCell>
                                             <Badge
-                                                :variant="item.role === 'admin' ? 'default' : item.role === 'admin' ? 'secondary' : 'outline'">
+                                                :variant="item.role === 'admin' ? 'default' : item.role === 'kasir' ? 'secondary' : 'outline'">
                                                 {{ item.role }}
                                             </Badge>
                                         </TableCell>
@@ -415,7 +414,7 @@ onMounted(fetchUsers);
                                                     class="h-4 w-4 text-green-600" />
                                                 <XCircle v-else class="h-4 w-4 text-yellow-600" />
                                             </Button>
-                                            <Button @click="editUser(item)" variant="ghost" size="sm"
+                                            <Button @click="openEditDialog(item)" variant="ghost" size="sm"
                                                 class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Pencil class="h-4 w-4" />
                                             </Button>
@@ -475,6 +474,7 @@ onMounted(fetchUsers);
     }
 }
 
+/* Ensure buttons are always visible on small screens */
 @media (max-width: 640px) {
     .group-hover\:opacity-100 {
         opacity: 1 !important;

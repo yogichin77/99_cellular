@@ -9,15 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { clearOfflineTransaksis, getAllOfflineTransaksis, saveOfflineTransaksi } from '@/lib/Idb_Kasir';
 import DetailTransaksi from '@/pages/DetailTransaksi.vue';
-import StrukTransaksi from '@/pages/StrukTransaksi.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, History, Package, Plus, Printer, Search, ShoppingCart, Trash2, User } from 'lucide-vue-next';
+import { CheckCircle, Eye, History, Package, Plus, Search, ShoppingCart, Trash2, User } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Kasir', href: '/kasir' }];
 const user = usePage().props.user as { id: number, name: string, role: string };
 
@@ -79,28 +77,6 @@ interface TransaksiResponse {
     }>;
 };
 
-window.addEventListener('online', async () => {
-    const offlineData = await getAllOfflineTransaksis();
-    for (const transaksi of offlineData) {
-        try {
-
-            const payload = {
-                sub_total_bayar: transaksi.subtotal,
-                diskon: transaksi.diskon,
-                total_bayar: transaksi.total_bayar,
-                status_pembayaran: transaksi.status_pembayaran,
-                jatuh_tempo: transaksi.jatuh_tempo,
-                id_pelanggan: transaksi.id_pelanggan,
-                id_user: transaksi.id_user,
-                items: transaksi.items
-            };
-            await axios.post('/api/transaksi', payload);
-        } catch (e) {
-            console.error('Gagal sinkronisasi:', e);
-        }
-    }
-    await clearOfflineTransaksis();
-});
 
 // State Management
 const pelanggans = ref<Pelanggan[]>([]);
@@ -118,9 +94,8 @@ const searchPelanggan = ref("");
 const openModalTambahPelanggan = ref(false);
 const loadingTambahPelanggan = ref(false);
 const showDetailModal = ref(false);
-const showPrintModal = ref(false);
 const currentTransaction = ref<TransaksiResponse | null>(null);
-
+const searchTermTransaksi = ref('');
 const formPelanggan = ref({
     nama_pelanggan: '',
     alamat: '',
@@ -130,6 +105,7 @@ const formPelanggan = ref({
 
 const showTransactionDetail = async (transaksi: TransaksiResponse) => {
     try {
+        // Pastikan ini mengambil data transaksi lengkap, termasuk user
         const { data } = await axios.get(`/api/transaksi/${transaksi.id}`);
         currentTransaction.value = data.data;
         showDetailModal.value = true;
@@ -146,17 +122,21 @@ const filteredPelanggan = computed(() => {
     );
 });
 
-const handlePrint = async (transaksi: TransaksiResponse) => {
-    try {
-        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`);
-        currentTransaction.value = data.data;
-        showPrintModal.value = true;
-        await nextTick();
-    } catch (error) {
-        console.error('Gagal memuat data struk:', error);
-        Swal.fire('Error', 'Gagal memuat data untuk dicetak', 'error');
+
+const paginatedTransaksis = computed(() => {
+    let filtered = transaksis.value;
+
+    if (searchTermTransaksi.value) {
+        const lowerCaseSearch = searchTermTransaksi.value.toLowerCase();
+        filtered = filtered.filter(transaksi =>
+            transaksi.id.toString().includes(lowerCaseSearch) ||
+            transaksi.pelanggan?.nama_pelanggan.toLowerCase().includes(lowerCaseSearch) ||
+            transaksi.user?.name.toLowerCase().includes(lowerCaseSearch) ||
+            transaksi.status_pembayaran.toLowerCase().includes(lowerCaseSearch)
+        );
     }
-};
+    return filtered.slice(0, 20);
+});
 
 function showSuccess(message: string) {
     Swal.fire({
@@ -233,7 +213,6 @@ const minDueDate = computed(() => {
     return today.toISOString().split('T')[0];
 });
 
-// Lifecycle Hooks
 onMounted(async () => {
     isLoading.value = true;
     try {
@@ -327,23 +306,9 @@ const removeItem = (index: number) => {
     items.value.splice(index, 1);
 };
 
+
 const resetForm = () => {
-    if (items.value.length > 0) {
-        Swal.fire({
-            title: 'Reset Transaksi?',
-            text: 'Semua item akan dihapus',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Reset',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                doResetForm();
-            }
-        });
-    } else {
-        doResetForm();
-    }
+    doResetForm();
 };
 
 const doResetForm = () => {
@@ -421,40 +386,22 @@ const prosesTransaksi = async () => {
                 total_harga: item.total_harga,
             }))
         };
-
-        // Jika offline, simpan ke IndexedDB
-        if (!navigator.onLine) {
-            await saveOfflineTransaksi(payload);
-            Swal.fire({
-                title: 'Offline Mode',
-                text: 'Transaksi disimpan secara offline dan akan dikirim saat online.',
-                icon: 'info',
-                confirmButtonText: 'OK'
-            });
-            resetForm();
-            return;
-        }
-
-        // Jika online, langsung kirim ke API
         console.log("Payload:", JSON.stringify(payload, null, 2));
         const { data } = await axios.post('/api/transaksi', payload);
-        currentTransaction.value = data.data;
 
-        // Cetak struk
-        await nextTick();
-        handlePrint(data.data);
-        resetForm();
         await Swal.fire({
             title: 'Transaksi Berhasil!',
             html: `No. Transaksi: <b>#${data.data.id}</b>`,
             icon: 'success',
-            timer: 1000,
+            timer: 1500,
             showConfirmButton: false,
             allowOutsideClick: false,
-            didClose: () => handlePrint(data.data)
+            didClose: async () => {
+                await showTransactionDetail(data.data);
+            }
         });
 
-
+        resetForm();
         await fetchProduk();
         await fetchTransaksis();
 
@@ -462,7 +409,6 @@ const prosesTransaksi = async () => {
         const errorMessage = error.response?.data?.message ||
             Object.values(error.response?.data?.errors || {}).flat().join('\n') ||
             'Terjadi kesalahan saat memproses transaksi';
-
         Swal.fire({
             title: 'Error!',
             text: errorMessage,
@@ -474,8 +420,6 @@ const prosesTransaksi = async () => {
     }
 };
 </script>
-
-
 
 <template>
 
@@ -586,7 +530,7 @@ const prosesTransaksi = async () => {
                                     </SelectTrigger>
                                     <SelectContent class="max-h-60">
                                         <Input v-model="searchPelanggan" placeholder="Cari pelanggan..."
-                                            class="mb-2 sticky top-0 bg-background text-xs sm:text-sm" />
+                                            class="mb-2 sticky top-0 bg-white dark:bg-zinc-900 text-xs sm:text-sm z-50" />
                                         <SelectItem :value="null" class="text-xs sm:text-sm">
                                             <span class="text-muted-foreground">Umum</span>
                                         </SelectItem>
@@ -806,102 +750,55 @@ const prosesTransaksi = async () => {
                 </div>
 
                 <!-- Transaction History (Right Side) -->
-                <Card class="w-full xl:max-w-[400px] 2xl:max-w-[500px]">
+                <Card>
                     <CardHeader>
-                        <CardTitle class="flex items-center gap-2">
-                            <History class="w-5 h-5 text-emerald-500" />
-                            <span class="text-base sm:text-lg">Riwayat Transaksi</span>
+                        <CardTitle class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="flex items-center gap-2">
+                                <History class="w-5 h-5 text-primary" />
+                                <span class="text-base sm:text-lg">Riwayat Transaksi</span>
+                            </div>
+                            <div class="w-full sm:w-auto relative">
+                                <Input v-model="searchTermTransaksi" placeholder="Cari transaksi..."
+                                    class="pl-10 w-full text-sm sm:text-base" />
+                                <Search class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            </div>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div class="w-full py-2 px-1 sm:px-2">
-                            <div class="overflow-x-auto">
-                                <Table class="min-w-[600px] sm:min-w-full">
-                                    <TableHeader class="bg-muted">
-                                        <TableRow>
-                                            <TableHead
-                                                class="w-[70px] sm:w-[80px] whitespace-nowrap text-xs sm:text-sm">ID
-                                            </TableHead>
-                                            <TableHead
-                                                class="min-w-[100px] sm:min-w-[120px] whitespace-nowrap text-xs sm:text-sm">
-                                                Tanggal</TableHead>
-                                            <TableHead
-                                                class="min-w-[80px] sm:min-w-[100px] whitespace-nowrap text-xs sm:text-sm">
-                                                Pelanggan</TableHead>
-                                            <TableHead
-                                                class="text-left min-w-[80px] sm:min-w-[100px] whitespace-nowrap text-xs sm:text-sm">
-                                                Total</TableHead>
-                                            <TableHead class="whitespace-nowrap text-xs sm:text-sm">Status</TableHead>
-                                            <TableHead
-                                                class="w-[80px] sm:w-[90px] text-right whitespace-nowrap text-xs sm:text-sm">
-                                                Aksi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow v-for="transaksi in transaksis" :key="transaksi.id"
-                                            class="group hover:bg-muted/50 transition-colors">
-                                            <TableCell
-                                                class="font-medium py-1 sm:py-2 align-middle whitespace-nowrap text-xs sm:text-sm">
-                                                #{{ transaksi.id }}
-                                            </TableCell>
-                                            <TableCell
-                                                class="py-1 sm:py-2 align-middle whitespace-nowrap text-xs sm:text-sm">
-                                                <div class="text-muted-foreground">
-                                                    {{ formatDateTime(transaksi.created_at) }}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell
-                                                class="py-1 sm:py-2 align-middle whitespace-nowrap text-xs sm:text-sm">
-                                                <div class="flex flex-col">
-                                                    <span class="font-medium truncate max-w-[100px]">
-                                                        {{ transaksi.pelanggan?.nama_pelanggan || 'Umum' }}
-                                                    </span>
-                                                    <span class="text-xs text-muted-foreground truncate max-w-[100px]">
-                                                        {{ transaksi.pelanggan?.nama_toko || '' }}
-                                                    </span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell
-                                                class="py-1 sm:py-2 align-middle whitespace-nowrap text-xs sm:text-sm">
-                                                <div class="font-semibold">
-                                                    {{ formatCurrency(transaksi.sub_total_bayar) }}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell class="py-1 sm:py-2 align-middle whitespace-nowrap">
-                                                <Badge
-                                                    class="transition-colors h-5 px-2 py-0.5 min-w-[70px] sm:px-2 sm:py-1 text-xs sm:text-sm"
-                                                    :class="{
-                                                        'bg-green-600 text-white hover:bg-green-700': transaksi.status_pembayaran === 'cash',
-                                                        'bg-red-600 text-white hover:bg-red-700': transaksi.status_pembayaran === 'kredit',
-                                                    }">
-                                                    {{ transaksi.status_pembayaran?.toUpperCase() }}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell class="py-1 sm:py-2 align-middle">
-                                                <div class="flex gap-1 justify-end">
-                                                    <Button variant="ghost" size="icon"
-                                                        class="h-7 w-7 sm:h-8 sm:w-8 p-0 hover:bg-blue-50"
-                                                        @click="showTransactionDetail(transaksi)" title="Lihat Detail">
-                                                        <Eye class="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon"
-                                                        class="h-7 w-7 sm:h-8 sm:w-8 p-0 hover:bg-gray-100"
-                                                        @click="handlePrint(transaksi)" title="Cetak Ulang">
-                                                        <Printer class="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-
-                                        <TableRow v-if="transaksis.length === 0">
-                                            <TableCell colspan="6"
-                                                class="text-center py-6 text-muted-foreground text-xs sm:text-sm">
-                                                Belum ada riwayat transaksi
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
-                            </div>
+                        <div class="border rounded-lg overflow-hidden max-h-[700px] overflow-y-auto">
+                            <Table class="min-w-[350px] w-full">
+                                <TableHeader class="bg-muted sticky top-0 z-10">
+                                    <TableRow>
+                                        <TableHead class="w-[80px] sm:w-[40px]">ID</TableHead>
+                                        <TableHead class="w-[100px] sm:w-[10px]">Tanggal</TableHead>
+                                        <TableHead class="w-[100px] sm:w-[50px]">Pelanggan</TableHead>
+                                        <TableHead class="text-right w-[80px] sm:w-[100px]">Total</TableHead>
+                                        <TableHead class="text-center w-[60px] sm:w-[80px]">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow v-for="transaksi in paginatedTransaksis" :key="transaksi.id">
+                                        <TableCell class="font-small">#{{ transaksi.id }}</TableCell>
+                                        <TableCell class="text-xs">{{ formatDateTime(transaksi.created_at)
+                                        }}</TableCell>
+                                        <TableCell class="text-xs">{{ transaksi.pelanggan?.nama_pelanggan ||
+                                            'Umum' }}</TableCell>
+                                        <TableCell class="text-right text-sm font-medium">{{
+                                            formatCurrency(transaksi.total_bayar) }}</TableCell>
+                                        <TableCell class="text-center">
+                                            <Button variant="ghost" size="icon"
+                                                @click="showTransactionDetail(transaksi)" class="h-7 w-7">
+                                                <Eye class="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                    <TableRow v-if="paginatedTransaksis.length === 0">
+                                        <TableCell colspan="5" class="text-center py-6 text-muted-foreground">
+                                            Tidak ada transaksi ditemukan.
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
                         </div>
                     </CardContent>
                 </Card>
@@ -909,5 +806,4 @@ const prosesTransaksi = async () => {
         </div>
     </AppLayout>
     <DetailTransaksi v-model:open="showDetailModal" :transaction="currentTransaction" />
-    <StrukTransaksi v-model:open="showPrintModal" :transaction="currentTransaction" />
 </template>

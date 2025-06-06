@@ -14,7 +14,6 @@ import axios from 'axios';
 import { Minus, Plus, Search, Trash2, Pencil } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Skeleton } from '@/components/ui/skeleton';
 
 // Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
@@ -335,13 +334,12 @@ onMounted(() => {
 </script>
 
 <template>
-
   <Head title="Data Transaksi" />
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
       <h2 class="text-2xl font-bold tracking-tight">Data Transaksi</h2>
 
-      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
         <div class="relative w-full md:w-1/3">
           <Input type="text" placeholder="Cari transaksi (ID, pelanggan, toko)..." v-model="searchTerm" class="pl-10" />
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -374,9 +372,9 @@ onMounted(() => {
           <div v-else-if="filteredTransactions.length === 0" class="text-center py-8 text-gray-500">
             Tidak ada transaksi yang ditemukan.
           </div>
-          <div v-else class="overflow-x-auto">
+          <div v-else class="overflow-x-auto max-h-[60vh] overflow-y-auto border rounded-md">
             <Table>
-              <TableHeader>
+              <TableHeader class="sticky top-0 bg-white z-10">
                 <TableRow>
                   <TableHead>ID</TableHead>
                   <TableHead>Tanggal</TableHead>
@@ -392,7 +390,7 @@ onMounted(() => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow v-for="transaksi in filteredTransactions" :key="transaksi.id">
+                <TableRow v-for="transaksi in filteredTransactions" :key="transaksi.id" class="group">
                   <TableCell>{{ transaksi.id }}</TableCell>
                   <TableCell>{{ formatDateTime(transaksi.created_at) }}</TableCell>
                   <TableCell>
@@ -414,11 +412,20 @@ onMounted(() => {
                   </TableCell>
                   <TableCell>{{ formatDate(transaksi.jatuh_tempo) }}</TableCell>
                   <TableCell class="text-right space-x-2">
-                    <Button @click="openEditDialog(transaksi)" variant="ghost" size="sm" class="h-8 px-2">
+                    <Button 
+                      @click="openEditDialog(transaksi)" 
+                      variant="ghost" 
+                      size="sm" 
+                      class="h-8 px-2 text-primary hover:text-primary sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    >
                       <Pencil class="h-4 w-4" />
                     </Button>
-                    <Button @click="deleteTransaction(transaksi.id)" variant="ghost" size="sm"
-                      class="h-8 px-2 text-destructive hover:text-destructive">
+                    <Button 
+                      @click="deleteTransaction(transaksi.id)" 
+                      variant="ghost" 
+                      size="sm"
+                      class="h-8 px-2 text-destructive hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                    >
                       <Trash2 class="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -429,7 +436,6 @@ onMounted(() => {
         </CardContent>
       </Card>
 
-      <!-- Dialog Edit Transaksi -->
       <Dialog v-model:open="isEditDialogOpen">
         <DialogContent class="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -441,7 +447,6 @@ onMounted(() => {
             </DialogDescription>
           </DialogHeader>
 
-          <!-- Loading State -->
           <div v-if="isLoadingDetail" class="flex justify-center items-center h-64">
             <div class="text-center space-y-4">
               <div class="loading-dots flex justify-center">
@@ -453,7 +458,6 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Form Edit -->
           <div v-else-if="selectedTransaksi" class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-4">
               <h3 class="text-lg font-semibold">Detail Utama</h3>
@@ -523,9 +527,9 @@ onMounted(() => {
               <h3 class="text-lg font-semibold">Detail Produk</h3>
               
               <div v-if="selectedTransaksi.detailtransaksis && selectedTransaksi.detailtransaksis.length > 0">
-                <div class="border rounded-md">
+                <div class="border rounded-md overflow-x-auto max-h-[300px] overflow-y-auto">
                   <Table>
-                    <TableHeader>
+                    <TableHeader class="sticky top-0 bg-white z-10">
                       <TableRow>
                         <TableHead class="w-[40%]">Produk</TableHead>
                         <TableHead>Jumlah</TableHead>
@@ -634,7 +638,6 @@ onMounted(() => {
             </div>
           </div>
           
-          <!-- Summary Pembayaran -->
           <DialogFooter v-if="selectedTransaksi" class="pt-4 border-t">
             <div class="w-full space-y-2">
               <div class="flex justify-between">
@@ -704,6 +707,19 @@ onMounted(() => {
   animation-delay: 0.4s;
 }
 
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 0.2;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
 @keyframes bounce {
   0%, 100% {
     transform: translateY(0);
@@ -723,3 +739,5 @@ onMounted(() => {
   }
 }
 </style>
+
+

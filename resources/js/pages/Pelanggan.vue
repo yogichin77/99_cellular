@@ -8,7 +8,7 @@ import Swal from 'sweetalert2';
 import { PlusCircle, Pencil, Trash2, X, Check, User, Phone, MapPin, Store, Search } from 'lucide-vue-next';
 
 // Import Idb_Pelanggan functions
-import { clearOfflinePelanggans, getOfflinePelanggans, saveOfflinePelanggans, deleteOfflinePelanggan, getPelangganDb } from '@/lib/Idb_Pelanggan'; // Pastikan Anda juga mengimpor deleteOfflinePelanggan dan getPelangganDb
+import { clearOfflinePelanggans, getOfflinePelanggans, saveOfflinePelanggans, deleteOfflinePelanggan } from '@/lib/Idb_Pelanggan';
 
 // Shadcn UI Components
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '@/components/ui/dialog';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Pelanggan', href: '/pelanggan' }
@@ -37,6 +45,7 @@ const isSubmitting = ref(false);
 const searchQuery = ref('');
 const isOnline = ref(navigator.onLine); // Deteksi status online/offline
 const offlineQueue = ref<any[]>([]); // Queue untuk operasi yang tertunda
+const showDialog = ref(false); // State untuk mengontrol visibilitas dialog
 
 // Computed property untuk memfilter pelanggan
 const filteredPelanggan = computed(() => {
@@ -120,10 +129,10 @@ const syncOfflineQueue = async () => {
                 showSuccess(`Pelanggan "${operation.data.nama_pelanggan}" berhasil ditambahkan (disinkronkan).`);
                 // Perbarui ID di IndexedDB untuk entri offline yang baru dibuat
                 if (operation.offlineId) {
-                     // Hapus entri lama dengan offlineId
-                    await deleteOfflinePelanggan(operation.offlineId); // Gunakan deleteOfflinePelanggan
+                    // Hapus entri lama dengan offlineId
+                    await deleteOfflinePelanggan(operation.offlineId);
                     // Tambahkan entri baru dengan ID dari server
-                    await saveOfflinePelanggans(response.data.data); // Asumsi response.data.data adalah objek pelanggan lengkap dengan ID server
+                    await saveOfflinePelanggans(response.data.data);
                     console.log(`Updated offline entry ID from ${operation.offlineId} to ${response.data.data.id}`);
                 }
             } else if (operation.type === 'update') {
@@ -138,7 +147,7 @@ const syncOfflineQueue = async () => {
                 await deleteOfflinePelanggan(operation.id);
             }
             successfulOperations.push(i); // Tandai sebagai berhasil
-        } catch (error) {
+        } catch (error: any) {
             console.error(`Failed to sync operation ${operation.type} for ID ${operation.id || operation.offlineId || operation.data?.nama_pelanggan}:`, error);
             showError(`Gagal menyinkronkan data: ${error.message}. Akan dicoba lagi.`);
             // Jika gagal, biarkan di queue untuk dicoba lagi nanti
@@ -154,7 +163,6 @@ const syncOfflineQueue = async () => {
         await fetchpelanggan();
     }
 };
-
 
 // --- Modified submitForm for Offline Handling ---
 const submitForm = async () => {
@@ -173,7 +181,7 @@ const submitForm = async () => {
                 localStorage.setItem('offline_queue', JSON.stringify(offlineQueue.value));
                 showSuccess('Anda offline. Perubahan pelanggan disimpan lokal dan akan disinkronkan.');
                 // Update tampilan lokal dan IndexedDB secara langsung
-                await saveOfflinePelanggans({ ...dataToSave, id: editingId.value }); // Gunakan saveOfflinePelanggans
+                await saveOfflinePelanggans({ ...dataToSave, id: editingId.value });
             }
         } else {
             // Operasi CREATE
@@ -191,12 +199,13 @@ const submitForm = async () => {
                 const newCustomer = { ...dataToSave, id: tempId, is_offline_new: true };
                 pelanggan.value.push(newCustomer);
                 // Simpan juga ke IndexedDB dengan ID sementara
-                await saveOfflinePelanggans(newCustomer); // Gunakan saveOfflinePelanggans
+                await saveOfflinePelanggans(newCustomer);
             }
         }
         resetForm();
+        showDialog.value = false; // Tutup dialog setelah submit
         await fetchpelanggan(); // Selalu fetch data setelah operasi (baik online maupun offline)
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to save customer:', error);
         showError('Gagal menyimpan data pelanggan');
     } finally {
@@ -212,10 +221,9 @@ const editpelanggan = (item: any) => {
         alamat: item.alamat || '',
         nama_toko: item.nama_toko || '',
     };
-    // Jika item adalah item baru offline, gunakan id sementaranya untuk editing
     editingId.value = item.id;
+    showDialog.value = true; // Buka dialog saat mengedit
 };
-
 
 // --- Modified deletepelanggan for Offline Handling ---
 const deletepelanggan = async (id: number) => {
@@ -236,14 +244,14 @@ const deletepelanggan = async (id: number) => {
                 await axios.delete(`/api/pelanggan/${id}`);
                 showSuccess('Pelanggan berhasil dihapus');
                 // Hapus dari IndexedDB
-                await deleteOfflinePelanggan(id); // Gunakan deleteOfflinePelanggan
+                await deleteOfflinePelanggan(id);
             } else {
                 // Tambahkan ke queue jika offline
                 offlineQueue.value.push({ type: 'delete', id: id });
                 localStorage.setItem('offline_queue', JSON.stringify(offlineQueue.value));
                 showSuccess('Anda offline. Permintaan penghapusan disimpan lokal dan akan disinkronkan.');
                 // Hapus dari IndexedDB dan tampilan lokal secara langsung
-                await deleteOfflinePelanggan(id); // Gunakan deleteOfflinePelanggan
+                await deleteOfflinePelanggan(id);
             }
             await fetchpelanggan(); // Ambil ulang data setelah operasi
         } catch (error) {
@@ -253,7 +261,7 @@ const deletepelanggan = async (id: number) => {
     }
 };
 
-// Reset form
+// Reset form and close dialog
 const resetForm = () => {
     form.value = {
         nama_pelanggan: '',
@@ -262,6 +270,13 @@ const resetForm = () => {
         nama_toko: '',
     };
     editingId.value = null;
+    // showDialog.value = false; // This will be handled by dialog's v-model on close
+};
+
+// Function to open dialog for adding new customer
+const openAddCustomerDialog = () => {
+    resetForm(); // Pastikan form bersih saat menambah baru
+    showDialog.value = true;
 };
 
 // Show notifications
@@ -295,21 +310,17 @@ const showError = (message: string) => {
 
 // Initialize on mount
 onMounted(async () => {
-    // Muat queue dari LocalStorage (tetap pakai LocalStorage untuk queue sederhana)
     offlineQueue.value = localStorage.getItem('offline_queue') ? JSON.parse(localStorage.getItem('offline_queue')!) : [];
 
-    // Muat data pelanggan dari IndexedDB terlebih dahulu
-    pelanggan.value = await getOfflinePelanggans(); // Gunakan getOfflinePelanggans
+    pelanggan.value = await getOfflinePelanggans();
     console.log('Initial customers loaded from IndexedDB:', pelanggan.value);
 
-    // Lalu coba fetch dari API dan sinkronkan jika online
     await fetchpelanggan();
-    updateOnlineStatus(); // Set initial online status and start listening
+    updateOnlineStatus();
 });
 </script>
 
 <template>
-
     <Head title="Pelanggan" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-6">
@@ -326,73 +337,6 @@ onMounted(async () => {
             </div>
 
             <Card>
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <PlusCircle class="w-5 h-5" />
-                        {{ editingId ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru' }}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submitForm" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <Label for="nama_pelanggan">
-                                    <User class="w-4 h-4 inline mr-1" />
-                                    Nama Pelanggan <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.nama_pelanggan" id="nama_pelanggan"
-                                    placeholder="Nama lengkap pelanggan" required :disabled="isSubmitting" />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="no_handphone">
-                                    <Phone class="w-4 h-4 inline mr-1" />
-                                    No. Handphone <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.no_handphone" id="no_handphone"
-                                    placeholder="Nomor telepon aktif" required :disabled="isSubmitting" />
-                            </div>
-
-                            <div class="space-y-2">
-                                <Label for="nama_toko">
-                                    <Store class="w-4 h-4 inline mr-1" />
-                                    Nama Toko <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.nama_toko" id="nama_toko" placeholder="Nama toko/usaha"
-                                    required :disabled="isSubmitting" />
-                            </div>
-
-                            <div class="space-y-2 md:col-span-2">
-                                <Label for="alamat">
-                                    <MapPin class="w-4 h-4 inline mr-1" />
-                                    Alamat <span class="text-destructive">*</span>
-                                </Label>
-                                <Input v-model.trim="form.alamat" id="alamat" placeholder="Alamat lengkap" required
-                                    :disabled="isSubmitting" />
-                            </div>
-                        </div>
-
-                        <div class="flex gap-3 pt-2">
-                            <Button type="submit" :disabled="isSubmitting">
-                                <Check class="w-4 h-4 mr-2" />
-                                {{ editingId ? 'Update' : 'Simpan' }}
-                                <span v-if="isSubmitting" class="ml-2">
-                                    <span class="loading-dots">
-                                        <span>.</span><span>.</span><span>.</span>
-                                    </span>
-                                </span>
-                            </Button>
-                            <Button v-if="editingId" @click="resetForm" type="button" variant="outline"
-                                :disabled="isSubmitting">
-                                <X class="w-4 h-4 mr-2" />
-                                Batal
-                            </Button>
-                        </div>
-                    </form>
-                </CardContent>
-            </Card>
-
-            <Card>
                 <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle class="flex items-center gap-2">
                         Daftar Pelanggan
@@ -400,92 +344,163 @@ onMounted(async () => {
                             {{ filteredPelanggan.length }} data
                         </Badge>
                     </CardTitle>
-                    <div class="relative w-full max-w-sm">
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="Cari pelanggan..."
-                            class="pl-8"
-                        />
-                        <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <div class="flex items-center gap-4">
+                        <div class="relative w-full max-w-sm">
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="Cari pelanggan..."
+                                class="pl-8"
+                            />
+                            <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <Button @click="openAddCustomerDialog">
+                            <PlusCircle class="w-4 h-4 mr-2" />
+                            Tambah Pelanggan
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
                     <div class="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nama Pelanggan</TableHead>
-                                    <TableHead>No. HP</TableHead>
-                                    <TableHead>Nama Toko</TableHead>
-                                    <TableHead>Alamat</TableHead>
-                                    <TableHead class="text-right">Aksi</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <template v-if="isLoading">
-                                    <TableRow v-for="i in 3" :key="i">
-                                        <TableCell>
-                                            <Skeleton class="h-4 w-[120px]" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton class="h-4 w-[100px]" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton class="h-4 w-[150px]" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton class="h-4 w-[200px]" />
-                                        </TableCell>
-                                        <TableCell class="flex justify-end gap-2">
-                                            <Skeleton class="h-8 w-8" />
-                                            <Skeleton class="h-8 w-8" />
-                                        </TableCell>
+                        <div class="max-h-[500px] overflow-y-auto">
+                            <Table>
+                                <TableHeader class="sticky top-0 bg-white z-10">
+                                    <TableRow>
+                                        <TableHead>Nama Pelanggan</TableHead>
+                                        <TableHead>No. HP</TableHead>
+                                        <TableHead>Nama Toko</TableHead>
+                                        <TableHead>Alamat</TableHead>
+                                        <TableHead class="text-right">Aksi</TableHead>
                                     </TableRow>
-                                </template>
-                                <template v-else>
-                                    <TableRow v-for="item in filteredPelanggan" :key="item.id"
-                                        class="group hover:bg-muted/50 transition-colors">
-                                        <TableCell class="font-medium">
-                                            {{ item.nama_pelanggan }}
-                                            <Badge v-if="typeof item.id === 'string' && item.id.startsWith('offline-')" variant="secondary" class="ml-2">Offline New</Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            {{ item.no_handphone }}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">
-                                                {{ item.nama_toko || '-' }}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">
-                                                {{ item.alamat || '-' }}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell class="text-right space-x-2">
-                                            <Button @click="editpelanggan(item)" variant="ghost" size="sm"
-                                                class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Pencil class="h-4 w-4" />
-                                            </Button>
-                                            <Button @click="deletepelanggan(item.id)" variant="ghost"
-                                                size="sm"
-                                                class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Trash2 class="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                    <TableRow v-if="filteredPelanggan.length === 0 && !isLoading">
-                                        <TableCell :colspan="5" class="text-center text-muted-foreground py-8">
-                                            Tidak ada data pelanggan yang cocok dengan pencarian Anda.
-                                        </TableCell>
-                                    </TableRow>
-                                </template>
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    <template v-if="isLoading">
+                                        <TableRow v-for="i in 3" :key="i">
+                                            <TableCell>
+                                                <Skeleton class="h-4 w-[120px]" />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Skeleton class="h-4 w-[100px]" />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Skeleton class="h-4 w-[150px]" />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Skeleton class="h-4 w-[200px]" />
+                                            </TableCell>
+                                            <TableCell class="flex justify-end gap-2">
+                                                <Skeleton class="h-8 w-8" />
+                                                <Skeleton class="h-8 w-8" />
+                                            </TableCell>
+                                        </TableRow>
+                                    </template>
+                                    <template v-else>
+                                        <TableRow v-for="item in filteredPelanggan" :key="item.id"
+                                            class="group hover:bg-muted/50 transition-colors">
+                                            <TableCell class="font-medium">
+                                                {{ item.nama_pelanggan }}
+                                                <Badge v-if="typeof item.id === 'string' && item.id.startsWith('offline-')" variant="secondary" class="ml-2">Offline New</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {{ item.no_handphone }}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">
+                                                    {{ item.nama_toko || '-' }}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">
+                                                    {{ item.alamat || '-' }}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell class="text-right space-x-2">
+                                                <Button @click="editpelanggan(item)" variant="ghost" size="sm"
+                                                    class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Pencil class="h-4 w-4" />
+                                                </Button>
+                                                <Button @click="deletepelanggan(item.id)" variant="ghost"
+                                                    size="sm"
+                                                    class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow v-if="filteredPelanggan.length === 0 && !isLoading">
+                                            <TableCell :colspan="5" class="text-center text-muted-foreground py-8">
+                                                Tidak ada data pelanggan yang cocok dengan pencarian Anda.
+                                            </TableCell>
+                                        </TableRow>
+                                    </template>
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
         </div>
+
+        <Dialog v-model:open="showDialog" @update:open="val => { if (!val) resetForm() }">
+            <DialogContent class="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>{{ editingId ? 'Edit Pelanggan' : 'Tambah Pelanggan Baru' }}</DialogTitle>
+                    <DialogDescription>
+                        Lengkapi detail pelanggan di bawah ini. Klik simpan setelah selesai.
+                    </DialogDescription>
+                </DialogHeader>
+                <form @submit.prevent="submitForm" class="space-y-4 py-4">
+                    <div class="space-y-2">
+                        <Label for="nama_pelanggan">
+                            <User class="w-4 h-4 inline mr-1" />
+                            Nama Pelanggan <span class="text-destructive">*</span>
+                        </Label>
+                        <Input v-model.trim="form.nama_pelanggan" id="nama_pelanggan"
+                            placeholder="Nama lengkap pelanggan" required :disabled="isSubmitting" />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="no_handphone">
+                            <Phone class="w-4 h-4 inline mr-1" />
+                            No. Handphone <span class="text-destructive">*</span>
+                        </Label>
+                        <Input v-model.trim="form.no_handphone" id="no_handphone"
+                            placeholder="Nomor telepon aktif" required :disabled="isSubmitting" />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="nama_toko">
+                            <Store class="w-4 h-4 inline mr-1" />
+                            Nama Toko <span class="text-destructive">*</span>
+                        </Label>
+                        <Input v-model.trim="form.nama_toko" id="nama_toko" placeholder="Nama toko/usaha"
+                            required :disabled="isSubmitting" />
+                    </div>
+
+                    <div class="space-y-2">
+                        <Label for="alamat">
+                            <MapPin class="w-4 h-4 inline mr-1" />
+                            Alamat <span class="text-destructive">*</span>
+                        </Label>
+                        <Input v-model.trim="form.alamat" id="alamat" placeholder="Alamat lengkap" required
+                            :disabled="isSubmitting" />
+                    </div>
+                </form>
+                <DialogFooter>
+                    <Button type="button" variant="outline" @click="showDialog = false; resetForm()" :disabled="isSubmitting">
+                        <X class="w-4 h-4 mr-2" />
+                        Batal
+                    </Button>
+                    <Button type="submit" @click="submitForm" :disabled="isSubmitting">
+                        <Check class="w-4 h-4 mr-2" />
+                        {{ editingId ? 'Update' : 'Simpan' }}
+                        <span v-if="isSubmitting" class="ml-2">
+                            <span class="loading-dots">
+                                <span>.</span><span>.</span><span>.</span>
+                            </span>
+                        </span>
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </AppLayout>
 </template>
 

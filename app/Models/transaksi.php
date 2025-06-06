@@ -24,6 +24,18 @@ class Transaksi extends Model
         'id_user',
     ];
 
+
+        protected $casts = [
+        'sub_total_bayar' => 'decimal:2', // Menggunakan 'decimal:2' untuk 2 angka di belakang koma
+        'diskon' => 'decimal:2',
+        'total_bayar' => 'decimal:2',
+        'total_kurang' => 'decimal:2',
+        'created_at' => 'datetime', // Untuk memastikan ini adalah objek DateTime
+        'updated_at' => 'datetime',
+        'jatuh_tempo' => 'date', // Jika ini hanya tanggal
+    ];
+
+
     public function detailtransaksis()
     {
         return $this->hasMany(DetailTransaksi::class, 'id_transaksi');

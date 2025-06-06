@@ -16,10 +16,11 @@ return new class extends Migration
             $table->string('nama_produk');
             $table->foreignId('id_kategori')->constrained('kategoris')->onDelete('cascade');
             $table->foreignId('id_merek')->constrained('mereks')->onDelete('cascade');
-            $table->decimal('harga_modal', 15, 2); // format harga umum
+            $table->decimal('harga_modal', 15, 2);
             $table->decimal('harga_jual', 15, 2);
             $table->integer('jumlah_stok')->default(0);
-            $table->string('gambar_produk')->nullable(); // opsional, bisa null
+            $table->string('gambar_produk')->nullable();
+            $table->longText('keterangan')->nullable();
             $table->timestamps();
         });
     }
