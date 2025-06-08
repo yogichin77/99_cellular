@@ -110,7 +110,7 @@ class TransaksiSeeder extends Seeder
                 'diskon' => $diskon,
                 'total_bayar' => $totalBayar,
                 'total_kurang' => $totalKurang,
-                'status_pembayaran' => $statusPembayaran,
+                'metode_pembayaran' => $statusPembayaran,
                 'jatuh_tempo' => $jatuhTempo,
                 'created_at' => $createdAt,
                 'updated_at' => $createdAt,

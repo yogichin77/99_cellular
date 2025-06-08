@@ -41,16 +41,17 @@ const form = ref({
 const fetchUsers = async () => {
     try {
         isLoading.value = true;
-        const response = await axios.get('/api/user');
-        users.value = response.data.data;
+        const response = await axios.get('api/user');
+        // Pastikan response.data.data adalah array. Jika tidak, default ke array kosong.
+        users.value = Array.isArray(response.data.data) ? response.data.data : [];
     } catch (error) {
         console.error('Error fetching data:', error);
         showError('Gagal memuat data');
+        users.value = []; // Penting: pastikan users adalah array bahkan jika ada error
     } finally {
         isLoading.value = false;
     }
 };
-
 // Filter users
 const filteredUsers = computed(() => {
     if (!searchTerm.value.trim()) return users.value;
@@ -232,6 +233,7 @@ onMounted(fetchUsers);
 </script>
 
 <template>
+
     <Head title="User" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
@@ -252,7 +254,8 @@ onMounted(fetchUsers);
                             <DialogHeader>
                                 <DialogTitle>{{ editingId ? 'Edit User' : 'Tambah User Baru' }}</DialogTitle>
                                 <DialogDescription>
-                                    {{ editingId ? 'Ubah informasi user yang sudah ada.' : 'Tambahkan user baru ke dalam sistem.' }}
+                                    {{ editingId ? 'Ubah informasi user yang sudah ada.' : `Tambahkan user baru ke dalam
+                                    sistem.` }}
                                 </DialogDescription>
                             </DialogHeader>
                             <form @submit.prevent="submitForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
@@ -269,8 +272,8 @@ onMounted(fetchUsers);
                                         <Label for="email">
                                             Email <span class="text-destructive">*</span>
                                         </Label>
-                                        <Input v-model.trim="form.email" id="email" type="email" placeholder="Email user"
-                                            required :disabled="isSubmitting" />
+                                        <Input v-model.trim="form.email" id="email" type="email"
+                                            placeholder="Email user" required :disabled="isSubmitting" />
                                     </div>
 
                                     <div class="space-y-2">
@@ -296,14 +299,16 @@ onMounted(fetchUsers);
                                             Password {{ editingId ? '(Biarkan kosong jika tidak ingin mengubah)' : '' }}
                                             <span v-if="!editingId" class="text-destructive">*</span>
                                         </Label>
-                                        <Input v-model.trim="form.password" id="password" type="password" :required="!editingId"
+                                        <Input v-model.trim="form.password" id="password" type="password"
+                                            :required="!editingId"
                                             :placeholder="editingId ? 'Kosongkan jika tidak diubah' : 'Password'"
                                             :disabled="isSubmitting" />
                                     </div>
 
                                     <div class="space-y-2">
                                         <Label for="password_confirmation">
-                                            Konfirmasi Password <span v-if="!editingId" class="text-destructive">*</span>
+                                            Konfirmasi Password <span v-if="!editingId"
+                                                class="text-destructive">*</span>
                                         </Label>
                                         <Input v-model.trim="form.password_confirmation" id="password_confirmation"
                                             type="password" :required="!editingId"
@@ -312,8 +317,8 @@ onMounted(fetchUsers);
                                     </div>
                                 </div>
                                 <DialogFooter class="md:col-span-2 flex justify-end gap-3 pt-4">
-                                    <Button v-if="editingId" @click="isDialogOpen = false; resetForm()" type="button" variant="outline"
-                                        :disabled="isSubmitting">
+                                    <Button v-if="editingId" @click="isDialogOpen = false; resetForm()" type="button"
+                                        variant="outline" :disabled="isSubmitting">
                                         <X class="w-4 h-4 mr-2" />
                                         Batal
                                     </Button>
@@ -336,7 +341,8 @@ onMounted(fetchUsers);
                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search class="h-5 w-5 text-muted-foreground" />
                         </div>
-                        <Input v-model.trim="searchTerm" type="search" placeholder="Cari user berdasarkan nama atau email..." class="pl-10" />
+                        <Input v-model.trim="searchTerm" type="search"
+                            placeholder="Cari user berdasarkan nama atau email..." class="pl-10" />
                     </div>
                 </CardContent>
             </Card>
@@ -346,12 +352,15 @@ onMounted(fetchUsers);
                     <CardTitle class="flex items-center gap-2">
                         Daftar User
                         <Badge variant="outline" class="px-2 py-1">
-                            {{ filteredUsers.length }} user
+                            {{ filteredUsers?.length ?? 0 }} user
                         </Badge>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div class="rounded-md border overflow-auto max-h-[calc(100vh-250px)]"> <Table class="min-w-full"> <TableHeader class="sticky top-0 bg-background z-10"> <TableRow>
+                    <div class="rounded-md border overflow-auto max-h-[calc(100vh-250px)]">
+                        <Table class="min-w-full">
+                            <TableHeader class="sticky top-0 bg-background z-10">
+                                <TableRow>
                                     <TableHead>Nama</TableHead>
                                     <TableHead>Email</TableHead>
                                     <TableHead>Role</TableHead>

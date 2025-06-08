@@ -23,7 +23,7 @@ const fetchMonthlyRevenue = async () => {
     isLoadingRevenue.value = true;
     try {
         const currentYear = new Date().getFullYear();
-        const response = await axios.get(`/api/transaksi/monthly-revenue`, {
+        const response = await axios.get(`api/dashboard/monthly-revenue`, {
             params: {
                 year: currentYear
             }

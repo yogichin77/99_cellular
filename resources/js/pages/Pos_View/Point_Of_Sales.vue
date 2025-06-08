@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import DetailTransaksi from '@/pages/DetailTransaksi.vue';
+import Detail_Transaksi from '@/pages/Pos_View/Detail_Transaksi.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -53,7 +53,7 @@ interface TransaksiResponse {
     diskon: number;
     total_bayar: number;
     total_kurang: number;
-    status_pembayaran: 'cash' | 'kredit';
+    metode_pembayaran: 'cash' | 'kredit';
     jatuh_tempo?: string;
     created_at: string;
     updated_at: string;
@@ -107,7 +107,7 @@ const formPelanggan = ref({
 const showTransactionDetail = async (transaksi: TransaksiResponse) => {
     try {
         // Pastikan ini mengambil data transaksi lengkap, termasuk user
-        const { data } = await axios.get(`/api/transaksi/${transaksi.id}`);
+        const { data } = await axios.get(`api/transaksi/${transaksi.id}`);
         currentTransaction.value = data.data;
         showDetailModal.value = true;
     } catch (error) {
@@ -133,7 +133,7 @@ const paginatedTransaksis = computed(() => {
             transaksi.id.toString().includes(lowerCaseSearch) ||
             transaksi.pelanggan?.nama_pelanggan.toLowerCase().includes(lowerCaseSearch) ||
             transaksi.user?.name.toLowerCase().includes(lowerCaseSearch) ||
-            transaksi.status_pembayaran.toLowerCase().includes(lowerCaseSearch)
+            transaksi.metode_pembayaran.toLowerCase().includes(lowerCaseSearch)
         );
     }
     return filtered.slice(0, 20);
@@ -153,7 +153,7 @@ async function tambahPelanggan() {
     loadingTambahPelanggan.value = true;
 
     try {
-        const response = await axios.post('/api/pelanggan', formPelanggan.value);
+        const response = await axios.post('api/pelanggan', formPelanggan.value);
         showSuccess(response.data.message || 'Pelanggan berhasil ditambahkan');
         const newPelanggan = response.data.data;
         pelanggans.value.push(newPelanggan);
@@ -229,7 +229,7 @@ onMounted(async () => {
 // API Functions
 const fetchPelanggan = async () => {
     try {
-        const { data } = await axios.get('/api/pelanggan');
+        const { data } = await axios.get('api/pelanggan');
         pelanggans.value = data.data;
     } catch (error) {
         console.error('Error fetching pelanggans:', error);
@@ -239,7 +239,7 @@ const fetchPelanggan = async () => {
 
 const fetchProduk = async () => {
     try {
-        const { data } = await axios.get('/api/produk');
+        const { data } = await axios.get('api/produk');
         produks.value = data.data.map((p: Produk) => ({
             ...p,
             qty: 1,
@@ -253,7 +253,7 @@ const fetchProduk = async () => {
 
 const fetchTransaksis = async () => {
     try {
-        const { data } = await axios.get('/api/transaksi');
+        const { data } = await axios.get('api/transaksi');
         transaksis.value = data.data
             .map((t: TransaksiResponse) => ({
                 ...t,
@@ -375,7 +375,7 @@ const prosesTransaksi = async () => {
             sub_total: subtotal.value,
             diskon: diskon.value,
             total_bayar: totalBayar.value,
-            status_pembayaran: statusPembayaran.value,
+            metode_pembayaran: statusPembayaran.value,
             jatuh_tempo: statusPembayaran.value === 'kredit'
                 ? new Date(jatuhTempo.value).toISOString().split('T')[0]
                 : null,
@@ -388,7 +388,7 @@ const prosesTransaksi = async () => {
             }))
         };
         console.log("Payload:", JSON.stringify(payload, null, 2));
-        const { data } = await axios.post('/api/transaksi', payload);
+        const { data } = await axios.post('api/transaksi', payload);
 
         await Swal.fire({
             title: 'Transaksi Berhasil!',
@@ -653,9 +653,9 @@ const prosesTransaksi = async () => {
 
                                         <!-- Status Pembayaran -->
                                         <div class="space-y-1 sm:space-y-2">
-                                            <Label for="status_pembayaran" class="text-xs sm:text-sm">Status</Label>
+                                            <Label for="metode_pembayaran" class="text-xs sm:text-sm">Status</Label>
                                             <Select v-model="statusPembayaran">
-                                                <SelectTrigger id="status_pembayaran" class="w-full text-xs sm:text-sm">
+                                                <SelectTrigger id="metode_pembayaran" class="w-full text-xs sm:text-sm">
                                                     <SelectValue placeholder="Pilih Status" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -773,7 +773,7 @@ const prosesTransaksi = async () => {
                                         <TableHead class="w-[80px] sm:w-[40px]">ID</TableHead>
                                         <TableHead class="w-[100px] sm:w-[10px]">Tanggal</TableHead>
                                         <TableHead class="w-[100px] sm:w-[50px]">Pelanggan</TableHead>
-                                        <TableHead class="text-right w-[80px] sm:w-[100px]">Total</TableHead>
+                                        <TableHead class="text-left w-[80px] sm:w-[100px]">Sub Total</TableHead>
                                         <TableHead class="text-center w-[60px] sm:w-[80px]">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -815,8 +815,8 @@ const prosesTransaksi = async () => {
                                             </TableCell>
                                             <TableCell class="text-xs">{{ transaksi.pelanggan?.nama_pelanggan || 'Umum'
                                                 }}</TableCell>
-                                            <TableCell class="text-right text-sm font-medium">{{
-                                                formatCurrency(transaksi.total_bayar) }}</TableCell>
+                                            <TableCell class="text-left text-sm font-medium">{{
+                                                formatCurrency(transaksi.sub_total) }}</TableCell>
                                             <TableCell class="text-center">
                                                 <Button variant="ghost" size="icon" title="Detail Transaksi"
                                                     @click="showTransactionDetail(transaksi)" class="h-7 w-7">
@@ -838,5 +838,38 @@ const prosesTransaksi = async () => {
             </div>
         </div>
     </AppLayout>
-    <DetailTransaksi v-model:open="showDetailModal" :transaction="currentTransaction" />
+    <Detail_Transaksi v-model:open="showDetailModal" :transaction="currentTransaction" />
 </template>
+
+<style scoped>
+.loading-dots {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.loading-dots span {
+    animation: blink 1.4s infinite both;
+    animation-delay: calc(var(--index) * 0.2s);
+}
+
+.loading-dots span:nth-child(1) {
+    --index: 1;
+}
+.loading-dots span:nth-child(2) {
+    --index: 2;
+}
+.loading-dots span:nth-child(3) {
+    --index: 3;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+}
+
+@media (max-width: 640px) {
+    .group-hover\:opacity-100 {
+        opacity: 1 !important;
+    }
+}
+</style>

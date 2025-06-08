@@ -23,7 +23,9 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from '@/components/ui/dialog'; // Import Dialog components
+} from '@/components/ui/dialog';
+// Import the Skeleton component if you have it in Shadcn UI
+import { Skeleton } from '@/components/ui/skeleton'; // Assuming this path for Shadcn UI Skeleton
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Kategori', href: '/kategori' }
@@ -37,13 +39,13 @@ const form = ref({
 });
 const editingId = ref<number | null>(null);
 const isLoading = ref(false);
-const isFormDialogOpen = ref(false); // State to control the dialog visibility
+const isFormDialogOpen = ref(false);
 
 // Fetch data
 const fetchkategori = async () => {
     try {
         isLoading.value = true;
-        const response = await axios.get('/api/kategori');
+        const response = await axios.get('api/kategori');
         kategori.value = response.data.data;
     } catch (error) {
         console.error('Error fetching categories:', error);
@@ -57,27 +59,37 @@ const fetchkategori = async () => {
 const submitForm = async () => {
     try {
         isLoading.value = true;
+
+        const formData = new FormData();
+        formData.append('nama_kategori', form.value.nama_kategori);
+        formData.append('deskripsi_kategori', form.value.deskripsi_kategori);
+
         if (editingId.value) {
-            await axios.put(`/api/kategori/${editingId.value}`, form.value);
+            formData.append('_method', 'PUT');
+            await axios.post(`api/kategori/${editingId.value}`, formData);
             Swal.fire('Berhasil!', 'Kategori berhasil diperbarui', 'success');
         } else {
-            await axios.post('/api/kategori', form.value);
+            await axios.post('api/kategori', formData);
             Swal.fire('Berhasil!', 'Kategori berhasil ditambahkan', 'success');
         }
         resetForm();
-        isFormDialogOpen.value = false; // Close the dialog after successful submission
+        isFormDialogOpen.value = false;
         await fetchkategori();
     } catch (error: any) {
         console.error('Error saving category:', error);
-        if (error.response && error.response.status === 422) {
-            const errors = error.response.data.errors;
-            let errorMessage = '';
-            for (const key in errors) {
-                errorMessage += errors[key].join(', ') + '\n';
+        if (axios.isAxiosError(error) && error.response) {
+            if (error.response.status === 422) {
+                const errors = error.response.data.errors;
+                let errorMessage = '';
+                for (const key in errors) {
+                    errorMessage += errors[key].join(', ') + '\n';
+                }
+                Swal.fire('Validasi Gagal', errorMessage, 'error');
+            } else {
+                Swal.fire('Error', 'Gagal menyimpan kategori. ' + (error.response.data.message || ''), 'error');
             }
-            Swal.fire('Validasi Gagal', errorMessage, 'error');
         } else {
-            Swal.fire('Error', 'Gagal menyimpan kategori', 'error');
+            Swal.fire('Error', 'Gagal menyimpan kategori.', 'error');
         }
     } finally {
         isLoading.value = false;
@@ -91,7 +103,7 @@ const editkategori = (item: any) => {
         deskripsi_kategori: item.deskripsi_kategori,
     };
     editingId.value = item.id;
-    isFormDialogOpen.value = true; // Open the dialog when editing
+    isFormDialogOpen.value = true;
 };
 
 // Delete category
@@ -109,12 +121,12 @@ const deletekategori = async (id: number) => {
     if (result.isConfirmed) {
         try {
             isLoading.value = true;
-            await axios.delete(`/api/kategori/${id}`);
+            await axios.delete(`api/kategori/${id}`);
             await fetchkategori();
             Swal.fire('Berhasil!', 'Kategori telah dihapus', 'success');
         } catch (error) {
             console.error('Error deleting category:', error);
-            Swal.fire('Error', 'Gagal menghapus kategori karena terkait pada produk', 'error');
+            Swal.fire('Error', 'Gagal menghapus kategori. Mungkin terkait pada produk lain.', 'error');
         } finally {
             isLoading.value = false;
         }
@@ -128,7 +140,6 @@ const resetForm = () => {
         deskripsi_kategori: '',
     };
     editingId.value = null;
-    // Do not close the dialog here, let @update:open handle it when user explicitly closes
 };
 
 // Function to truncate text
@@ -166,31 +177,21 @@ onMounted(fetchkategori);
                                 <Label for="nama_kategori">
                                     Nama Kategori <span class="text-destructive">*</span>
                                 </Label>
-                                <Input
-                                    v-model="form.nama_kategori"
-                                    id="nama_kategori"
-                                    placeholder="Masukkan nama kategori"
-                                    required
-                                    :disabled="isLoading"
-                                />
+                                <Input v-model="form.nama_kategori" id="nama_kategori"
+                                    placeholder="Masukkan nama kategori" required :disabled="isLoading" />
                             </div>
 
                             <div class="space-y-2">
                                 <Label for="deskripsi_kategori">
                                     Deskripsi Kategori <span class="text-destructive">*</span>
                                 </Label>
-                                <Textarea
-                                    v-model="form.deskripsi_kategori"
-                                    id="deskripsi_kategori"
-                                    placeholder="Masukkan deskripsi kategori"
-                                    rows="4"
-                                    required
-                                    :disabled="isLoading"
-                                />
+                                <Textarea v-model="form.deskripsi_kategori" id="deskripsi_kategori"
+                                    placeholder="Masukkan deskripsi kategori" rows="4" required :disabled="isLoading" />
                             </div>
                         </form>
                         <DialogFooter class="mt-4">
-                            <Button v-if="editingId" @click="isFormDialogOpen = false; resetForm()" type="button" variant="outline" :disabled="isLoading">
+                            <Button v-if="editingId" @click="isFormDialogOpen = false; resetForm()" type="button"
+                                variant="outline" :disabled="isLoading">
                                 <X class="w-4 h-4 mr-2" />
                                 Batal
                             </Button>
@@ -228,48 +229,51 @@ onMounted(fetchkategori);
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow
-                                    v-for="item in kategori"
-                                    :key="item.id"
-                                    class="group hover:bg-muted/50 transition-colors"
-                                >
-                                    <TableCell class="font-medium">
-                                        {{ item.nama_kategori }}
-                                    </TableCell>
-                                    <TableCell class="text-muted-foreground max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
-                                        {{ truncateText(item.deskripsi_kategori, 100) }}
-                                    </TableCell>
-                                    <TableCell class="text-right space-x-2">
-                                        <Button
-                                            @click="editkategori(item)"
-                                            variant="ghost"
-                                            title="Edit"
-                                            size="sm"
-                                            class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <Pencil class="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                            @click="deletekategori(item.id)"
-                                            variant="ghost"
-                                            size="sm"
-                                            title="Hapus"
-                                            class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <Trash2 class="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                                <TableRow v-if="kategori.length === 0 && !isLoading">
-                                    <TableCell colspan="3" class="text-center text-muted-foreground py-8">
-                                        Tidak ada data kategori
-                                    </TableCell>
-                                </TableRow>
-                                <TableRow v-if="isLoading">
-                                    <TableCell colspan="3" class="text-center text-muted-foreground py-8">
-                                        Memuat data...
-                                    </TableCell>
-                                </TableRow>
+                                <template v-if="isLoading">
+                                    <TableRow v-for="i in 5" :key="i">
+                                        <TableCell class="py-3">
+                                            <Skeleton class="h-4 w-[200px]" />
+                                        </TableCell>
+                                        <TableCell class="py-3">
+                                            <Skeleton class="h-4 w-[300px]" />
+                                        </TableCell>
+                                        <TableCell class="flex justify-end gap-2 py-3">
+                                            <Skeleton class="h-8 w-8" />
+                                            <Skeleton class="h-8 w-8" />
+                                        </TableCell>
+                                    </TableRow>
+                                </template>
+                                <template v-else-if="kategori.length > 0">
+                                    <TableRow v-for="item in kategori" :key="item.id"
+                                        class="group hover:bg-muted/50 transition-colors">
+                                        <TableCell class="font-medium">
+                                            {{ item.nama_kategori }}
+                                        </TableCell>
+                                        <TableCell
+                                            class="text-muted-foreground max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            {{ truncateText(item.deskripsi_kategori, 100) }}
+                                        </TableCell>
+                                        <TableCell class="text-right space-x-2">
+                                            <Button @click="editkategori(item)" variant="ghost" title="Edit"
+                                                size="sm"
+                                                class="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Pencil class="h-4 w-4" />
+                                            </Button>
+                                            <Button @click="deletekategori(item.id)" variant="ghost" size="sm"
+                                                title="Hapus"
+                                                class="h-8 px-2 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Trash2 class="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                </template>
+                                <template v-else>
+                                    <TableRow>
+                                        <TableCell colspan="3" class="text-center text-muted-foreground py-8">
+                                            Tidak ada data kategori
+                                        </TableCell>
+                                    </TableRow>
+                                </template>
                             </TableBody>
                         </Table>
                     </div>
@@ -279,35 +283,4 @@ onMounted(fetchkategori);
     </AppLayout>
 </template>
 
-<style scoped>
-.loading-dots {
-    display: inline-flex;
-    gap: 2px;
-}
 
-.loading-dots span {
-    animation: blink 1.4s infinite both;
-    animation-delay: calc(var(--index) * 0.2s);
-}
-
-.loading-dots span:nth-child(1) {
-    --index: 1;
-}
-.loading-dots span:nth-child(2) {
-    --index: 2;
-}
-.loading-dots span:nth-child(3) {
-    --index: 3;
-}
-
-@keyframes blink {
-    0%, 100% { opacity: 0.2; }
-    50% { opacity: 1; }
-}
-
-@media (max-width: 640px) {
-    .group-hover\:opacity-100 {
-        opacity: 1 !important;
-    }
-}
-</style>

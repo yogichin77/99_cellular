@@ -45,7 +45,7 @@ export interface TransaksiResponse {
   diskon: number;
   total_bayar: number;
   total_kurang: number;
-  status_pembayaran: 'cash' | 'kredit';
+  metode_pembayaran: 'cash' | 'kredit';
   jatuh_tempo?: string;
   created_at: string;
   updated_at: string;

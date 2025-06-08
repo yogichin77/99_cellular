@@ -17,7 +17,7 @@ class Transaksi extends Model
         'sub_total',
         'total_bayar',
         'total_kurang',
-        'status_pembayaran',
+        'metode_pembayaran',
         'jatuh_tempo',
         'diskon',
         'id_pelanggan',

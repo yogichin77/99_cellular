@@ -45,7 +45,7 @@ const isFormDialogOpen = ref(false); // State to control the dialog visibility
 const fetchmerek = async () => {
     try {
         isLoading.value = true;
-        const response = await axios.get('/api/merek');
+        const response = await axios.get('api/merek');
         merek.value = response.data.data;
     } catch (error) {
         console.error('Error fetching brands:', error);
@@ -65,7 +65,8 @@ const submitForm = async () => {
     try {
         isSubmitting.value = true;
         if (editingId.value) {
-            await axios.put(`/api/merek/${editingId.value}`, form.value);
+            // Change here: Add 'api/' prefix for PUT requests
+            await axios.put(`api/merek/${editingId.value}`, form.value);
             Swal.fire({
                 title: 'Berhasil!',
                 text: 'Merek berhasil diperbarui',
@@ -73,7 +74,8 @@ const submitForm = async () => {
                 confirmButtonColor: '#3b82f6',
             });
         } else {
-            await axios.post('/api/merek', form.value);
+            // This already has '/api/merek', so no change needed
+            await axios.post('api/merek', form.value);
             Swal.fire({
                 title: 'Berhasil!',
                 text: 'Merek berhasil ditambahkan',
@@ -129,7 +131,7 @@ const deletemerek = async (id: number) => {
     if (result.isConfirmed) {
         try {
             isLoading.value = true; // Show loading while deleting
-            await axios.delete(`/api/merek/${id}`);
+            await axios.delete(`api/merek/${id}`);
             await fetchmerek();
             Swal.fire({
                 title: 'Berhasil!',

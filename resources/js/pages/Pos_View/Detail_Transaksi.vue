@@ -37,8 +37,8 @@
               </div>
               <div class="flex items-center mb-2">
                 <span class="font-medium w-32 text-gray-700 dark:text-gray-300">Metode Pembayaran:</span>
-                <Badge :class="statusClass(transaction.status_pembayaran)" class="px-2 py-1 rounded-sm text-xs">
-                  {{ transaction.status_pembayaran?.toUpperCase() }}
+                <Badge :class="statusClass(transaction.metode_pembayaran)" class="px-2 py-1 rounded-sm text-xs">
+                  {{ transaction.metode_pembayaran?.toUpperCase() }}
                 </Badge>
               </div>
             </div>
@@ -50,7 +50,7 @@
                   {{ transaction.pelanggan.nama_toko }}
                 </div>
               </div>
-              <div v-if="transaction.status_pembayaran === 'kredit' && transaction.jatuh_tempo" class="text-sm">
+              <div v-if="transaction.metode_pembayaran === 'kredit' && transaction.jatuh_tempo" class="text-sm">
                 <span class="font-medium text-gray-700 dark:text-gray-300">Jatuh Tempo:</span>
                 <span class="text-gray-900 dark:text-gray-100">{{ formatDate(transaction.jatuh_tempo) }}</span>
               </div>
@@ -65,18 +65,18 @@
                 <thead>
                   <tr class="border-b border-blue-200">
                     <th class="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Produk</th>
-                    <th class="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">Harga</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Harga</th>
                     <th class="px-3 py-2 text-center font-medium text-gray-700 dark:text-gray-300">Qty</th>
-                    <th class="px-3 py-2 text-right font-medium text-gray-700 dark:text-gray-300">Total</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="item in transaction.detailtransaksis" :key="item.id"
                     class="border-b border-blue-50 dark:border-gray-700">
                     <td class="px-3 py-3 text-gray-900 dark:text-gray-100">{{ item.produk.nama_produk }}</td>
-                    <td class="px-3 py-3 text-right text-gray-900 dark:text-gray-100">{{ formatCurrency(item.harga_satuan) }}</td>
+                    <td class="px-3 py-3 text-left text-gray-900 dark:text-gray-100">{{ formatCurrency(item.harga_satuan) }}</td>
                     <td class="px-3 py-3 text-center text-gray-900 dark:text-gray-100">{{ item.jumlah }}</td>
-                    <td class="px-3 py-3 text-right text-gray-900 dark:text-gray-100 font-medium">{{ formatCurrency(item.total_harga) }}</td>
+                    <td class="px-3 py-3 text-left text-gray-900 dark:text-gray-100 font-medium">{{ formatCurrency(item.total_harga) }}</td>
                   </tr>
                   <tr v-if="!transaction.detailtransaksis || transaction.detailtransaksis.length === 0">
                     <td colspan="4" class="text-center py-4 text-gray-500 dark:text-gray-400">Tidak ada produk dalam transaksi ini.</td>
@@ -103,7 +103,7 @@
               </div>
               
               <!-- Pembayaran Cash -->
-              <div v-if="transaction.status_pembayaran === 'cash'" class="w-full max-w-[220px] mt-2 pt-2 border-t border-blue-200">
+              <div v-if="transaction.metode_pembayaran === 'cash'" class="w-full max-w-[220px] mt-2 pt-2 border-t border-blue-200">
                 <div class="flex justify-between mb-1">
                   <p class="text-gray-700 dark:text-gray-300">Dibayar:</p>
                   <span class="text-gray-900 dark:text-gray-100">{{ formatCurrency(transaction.total_bayar) }}</span>
@@ -115,7 +115,7 @@
               </div>
               
               <!-- Pembayaran Kredit -->
-              <div v-else-if="transaction.status_pembayaran === 'kredit' && parseFloat(String(transaction.total_kurang)) > 0"
+              <div v-else-if="transaction.metode_pembayaran === 'kredit' && parseFloat(String(transaction.total_kurang)) > 0"
                 class="flex justify-between w-full max-w-[220px] mt-2 pt-2 border-t border-blue-200">
                 <p class="font-bold text-gray-900 dark:text-gray-100">Sisa Tagihan:</p>
                 <span class="font-bold text-red-700 dark:text-red-300">{{ formatCurrency(transaction.total_kurang) }}</span>
@@ -205,133 +205,103 @@ const formatDate = (dateString: string) => {
 const statusClass = (status: 'cash' | 'kredit') => {
   return {
     'cash': 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-200',
-    'kredit': 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-200',
+    'kredit': 'bg-red-200 text-red-900 dark:bg-red-900/30 dark:text-red-300',
   }[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
 };
 
 const handlePrint = () => {
-  const contentToPrint = printableContent.value?.innerHTML;
-  if (!contentToPrint) {
+  const contentToPrintElement = printableContent.value;
+  if (!contentToPrintElement) {
     alert('Konten untuk dicetak tidak ditemukan.');
     return;
   }
 
-  const printWindow = window.open('', '_blank');
+  const printWindow = window.open('', '_blank', 'height=600,width=800');
   if (!printWindow) {
     alert('Gagal membuka jendela cetak. Pastikan pop-up diizinkan.');
     return;
   }
 
-  // Membuat dokumen baru dengan cara yang modern
   const printDocument = printWindow.document;
-  printDocument.open();
-  
-  // Menulis konten dengan metode yang tidak deprecated
-  printDocument.write(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Struk Transaksi #${props.transaction?.id || ''}</title>
-        <style>
-          /* Modern Print Styles */
-          @media print {
-            body {
-              font-family: 'Segoe UI', 'Roboto', sans-serif;
-              margin: 0;
-              padding: 10px;
-              color: #333;
-              font-size: 12px;
-              line-height: 1.4;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            
-            .printable-area {
-              width: 100%;
-              max-width: 80mm;
-              margin: 0 auto;
-            }
-            
-            /* Header Styles */
-            .border-b {
-              border-bottom: 1px solid #e2e8f0;
-            }
-            
-            /* Table Styles */
-            table {
-              width: 100%;
-              border-collapse: collapse;
-            }
-            
-            th, td {
-              padding: 6px 8px;
-              text-align: left;
-            }
-            
-            th {
-              background-color: #f8fafc;
-              font-weight: 600;
-              border-bottom: 1px solid #cbd5e1;
-            }
-            
-            tr {
-              border-bottom: 1px solid #e2e8f0;
-            }
-            
-            /* Summary Box */
-            .bg-blue-50 {
-              background-color: #f0f9ff;
-            }
-            
-            /* Utility Classes */
-            .text-right { text-align: right; }
-            .text-center { text-align: center; }
-            .font-bold { font-weight: 700; }
-            .mb-3 { margin-bottom: 12px; }
-            .py-3 { padding-top: 12px; padding-bottom: 12px; }
-            
-            /* Ensure colors print correctly */
-            .bg-blue-800 {
-              background-color: #1e40af !important;
-              color: white !important;
-            }
-            .text-blue-700 {
-              color: #1d4ed8 !important;
-            }
-            .text-red-600 {
-              color: #dc2626 !important;
-            }
-            .text-green-700 {
-              color: #047857 !important;
-            }
-            .bg-green-100 {
-              background-color: #dcfce7 !important;
-            }
-            .bg-amber-100 {
-              background-color: #fef3c7 !important;
-            }
-            
-            /* Hide Print Button */
-            .print\\:hidden {
-              display: none !important;
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="printable-area">
-          ${contentToPrint}
-        </div>
-        <script>
-          window.addEventListener('load', () => {
-            window.print();
-            setTimeout(() => window.close(), 500);
-          });
-        <\/script>
-      </body>
-    </html>
-  `);
-  
+
+  // Clear existing content in the new window's document
+  printDocument.open(); // This clears the document
+  printDocument.write(''); // This ensures it's truly empty
   printDocument.close();
+
+
+  // IMPORTANT: Do NOT create a new <html> element.
+  // Instead, append directly to printDocument.head and printDocument.body
+
+  // Set title
+  const title = printDocument.createElement('title');
+  title.textContent = `Struk Transaksi #${props.transaction?.id || ''}`;
+  printDocument.head.appendChild(title); // Append to existing head
+
+  // Add styles
+  const style = printDocument.createElement('style');
+  style.textContent = `
+    /* Modern Print Styles - all your existing print styles here */
+    @media print {
+      body {
+        font-family: 'Segoe UI', 'Roboto', sans-serif;
+        margin: 0;
+        padding: 10px;
+        color: #333;
+        font-size: 12px;
+        line-height: 1.4;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .printable-area {
+        width: 100%;
+        max-width: 80mm;
+        margin: 0 auto;
+      }
+      .border-b { border-bottom: 1px solid #e2e8f0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 6px 8px; text-align: left; }
+      th { background-color: #f8fafc; font-weight: 600; border-bottom: 1px solid #cbd5e1; }
+      tr { border-bottom: 1px solid #e2e8f0; }
+      .bg-blue-50 { background-color: #f0f9ff; }
+      .text-right { text-align: right; }
+      .text-center { text-align: center; }
+      .font-bold { font-weight: 700; }
+      .mb-3 { margin-bottom: 12px; }
+      .py-3 { padding-top: 12px; padding-bottom: 12px; }
+      .bg-blue-800 { background-color: #1e40af !important; color: white !important; }
+      .text-blue-700 { color: #1d4ed8 !important; }
+      .text-red-600 { color: #dc2626 !important; }
+      .text-green-700 { color: #047857 !important; }
+      .bg-green-100 { background-color: #dcfce7 !important; }
+      .bg-amber-100 { background-color: #fef3c7 !important; }
+      .print\\:hidden { display: none !important; }
+    }
+  `;
+  printDocument.head.appendChild(style); // Append to existing head
+
+  // Append the extracted content (cloning to avoid moving the original)
+  const clonedContent = contentToPrintElement.cloneNode(true) as HTMLElement;
+
+  // Remove the action buttons from the cloned content if they are inside the printable area
+  const actionButtons = clonedContent.querySelector('.print\\:hidden');
+  if (actionButtons) {
+    actionButtons.remove();
+  }
+
+  // Append to existing body
+  printDocument.body.appendChild(clonedContent);
+
+  // Add script for auto print and close
+  const script = printDocument.createElement('script');
+  script.textContent = `
+    window.addEventListener('load', () => {
+      window.print();
+      setTimeout(() => window.close(), 500);
+    });
+  `;
+  printDocument.body.appendChild(script); // Append to existing body
+
+  printDocument.close(); // Important to signal the document is complete
 };
 </script>

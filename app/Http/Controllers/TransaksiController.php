@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use Carbon\Carbon;
 use App\Models\Produk;
@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log; // Pastikan ini diimpor
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
+use App\Models\Kategori;
+use Barryvdh\DomPDF\Facade\Pdf;
+
 
 class TransaksiController extends Controller
 {
@@ -41,8 +44,8 @@ class TransaksiController extends Controller
             $validator = Validator::make($request->all(), [
                 'sub_total' => 'required|numeric|min:0', // Meskipun dihitung ulang, ini sebagai baseline
                 'total_bayar' => 'required|numeric|min:0',
-                'status_pembayaran' => 'required|in:cash,kredit',
-                'jatuh_tempo' => ['nullable', 'date', Rule::requiredIf($request->status_pembayaran === 'kredit')],
+                'metode_pembayaran' => 'required|in:cash,kredit',
+                'jatuh_tempo' => ['nullable', 'date', Rule::requiredIf($request->metode_pembayaran === 'kredit')],
                 'diskon' => 'nullable|numeric|min:0',
                 'id_pelanggan' => 'nullable|exists:pelanggans,id',
                 'id_user' => 'required|exists:users,id',
@@ -76,8 +79,8 @@ class TransaksiController extends Controller
                     'sub_total' => $calculatedSubTotal, // Menggunakan sub_total yang dihitung
                     'total_bayar' => $totalBayar,
                     'total_kurang' => $totalKurang,
-                    'status_pembayaran' => $request->status_pembayaran,
-                    'jatuh_tempo' => $request->status_pembayaran === 'kredit'
+                    'metode_pembayaran' => $request->metode_pembayaran,
+                    'jatuh_tempo' => $request->metode_pembayaran === 'kredit'
                         ? Carbon::parse($request->jatuh_tempo)
                         : null,
                     'diskon' => $diskon,
@@ -159,13 +162,14 @@ class TransaksiController extends Controller
         try {
             // Validasi data input
             $validated = $request->validate([
-                'sub_total' => 'required|numeric|min:0',
+                'sub_total' => 'required|numeric|min:0', // Ini bisa dihitung ulang di backend
                 'total_bayar' => 'required|numeric|min:0',
-                'status_pembayaran' => 'required|in:cash,kredit',
+                'metode_pembayaran' => 'required|string|in:cash,kredit',
                 'jatuh_tempo' => [
                     'nullable',
                     'date',
-                    Rule::requiredIf($request->status_pembayaran === 'kredit')
+                    // Pastikan jatuh tempo diperlukan jika metode pembayaran yang *diminta* adalah kredit
+                    Rule::requiredIf($request->metode_pembayaran === 'kredit')
                 ],
                 'diskon' => 'required|numeric|min:0',
                 'id_pelanggan' => 'nullable|exists:pelanggans,id',
@@ -174,109 +178,88 @@ class TransaksiController extends Controller
                 'items.*.id_detail_transaksi' => 'nullable|integer',
                 'items.*.id_produk' => 'required|exists:produks,id',
                 'items.*.jumlah' => 'required|integer|min:1',
+                // Anda mungkin ingin menambahkan validasi untuk harga_satuan di sini
+                // 'items.*.harga_satuan' => 'required|numeric|min:0',
             ]);
 
-            // <<< PERUBAHAN PENTING DI SINI >>>
-            // Ambil ID transaksi SEBELUM masuk ke closure DB::transaction
-            // Ini adalah upaya untuk memastikan ID tetap ada
             $transaksiIdFromRoute = $transaksi->id;
 
-            // Ini baris log yang SANGAT PENTING
             Log::info('DEBUG: ID Transaksi dari Route Model Binding di awal update(): ' . ($transaksiIdFromRoute ?? 'NULL'));
 
-
             // Jalankan operasi dalam sebuah transaksi database
-            return DB::transaction(function () use ($request, $transaksi, $validated, $transaksiIdFromRoute) { // Tambahkan $transaksiIdFromRoute di 'use'
-                // PENTING: Gunakan $transaksiIdFromRoute untuk semua operasi terkait ID transaksi
-                // Ganti $transaksiIdUntukDetail dengan $transaksiIdFromRoute
-                $transaksiIdUntukDetail = $transaksiIdFromRoute; // Ini bisa dihapus jika langsung pakai $transaksiIdFromRoute
+            return DB::transaction(function () use ($request, $transaksi, $validated, $transaksiIdFromRoute) {
+                $transaksiIdUntukDetail = $transaksiIdFromRoute;
 
                 Log::info('Memulai update transaksi ID: ' . ($transaksiIdUntukDetail ?? 'NULL'), [
                     'request_payload' => $request->all(),
-                    // Tambahkan current_transaksi_id di sini, bukan seluruh state
                     'current_transaksi_id' => $transaksiIdFromRoute,
-                    'current_transaksi_state_all_attributes' => $transaksi->toArray(), // Untuk debug lebih lanjut jika perlu
+                    'current_transaksi_state_all_attributes' => $transaksi->toArray(),
                     'current_detail_transaksi_state' => $transaksi->detailtransaksis->toArray()
                 ]);
 
-                // Hitung ulang sub_total dari item yang dikirim
+                // Hitung ulang sub_total di backend untuk keamanan dan akurasi
                 $calculatedSubTotal = 0;
                 foreach ($validated['items'] as $item) {
                     $produk = Produk::findOrFail($item['id_produk']);
-                    $calculatedSubTotal += $item['jumlah'] * $produk->harga_jual;
+                    $calculatedSubTotal += $item['jumlah'] * $produk->harga_jual; // Gunakan harga_jual dari produk
                 }
 
                 $diskon = min($validated['diskon'], $calculatedSubTotal);
                 $totalSetelahDiskon = $calculatedSubTotal - $diskon;
-                $totalBayar = $validated['total_bayar'];
-                $totalKurang = max(0, $totalSetelahDiskon - $totalBayar);
+                $totalBayarYangDiterima = $validated['total_bayar']; // Total bayar kumulatif termasuk tambahan
+                $totalKurang = max(0, $totalSetelahDiskon - $totalBayarYangDiterima);
 
-                // Update data transaksi utama
-                // Pastikan kita mengupdate objek $transaksi yang sama
+                // --- LOGIKA KUNCI UNTUK MENGUBAH STATUS PEMBAYARAN ---
+                $newMetodePembayaran = $validated['metode_pembayaran'];
+                $newJatuhTempo = $validated['metode_pembayaran'] === 'kredit'
+                    ? (isset($validated['jatuh_tempo']) ? Carbon::parse($validated['jatuh_tempo']) : null)
+                    : null; // Jika cash, jatuh tempo harus null
+
+                if ($transaksi->metode_pembayaran === 'kredit' && $totalKurang <= 0) {
+                    $newMetodePembayaran = 'cash';
+                    $newJatuhTempo = null;
+                }
                 $transaksi->update([
                     'sub_total' => $calculatedSubTotal,
-                    'total_bayar' => $totalBayar,
+                    'total_bayar' => $totalBayarYangDiterima,
                     'total_kurang' => $totalKurang,
-                    'status_pembayaran' => $validated['status_pembayaran'],
-                    'jatuh_tempo' => $validated['status_pembayaran'] === 'kredit'
-                        ? Carbon::parse($validated['jatuh_tempo'])
-                        : null,
+                    'metode_pembayaran' => $newMetodePembayaran,
+                    'jatuh_tempo' => $newJatuhTempo,
                     'diskon' => $diskon,
                     'id_pelanggan' => $validated['id_pelanggan'],
                     'id_user' => $validated['id_user'],
                 ]);
-
                 Log::info('Transaksi utama berhasil diupdate. ID transaksi: ' . ($transaksi->id ?? 'NULL'));
-
-                // **MANAJEMEN STOK PRODUK:**
-                // Pendekatan: Hitung perubahan stok bersih (net change) untuk setiap produk.
                 $produkChanges = [];
-
-                // 1. Tambahkan kembali semua stok dari detail yang ADA SEBELUM perubahan
                 foreach ($transaksi->detailtransaksis as $detail) {
                     if (!isset($produkChanges[$detail->id_produk])) {
                         $produkChanges[$detail->id_produk] = 0;
                     }
                     $produkChanges[$detail->id_produk] += $detail->jumlah;
                 }
-
-                // 2. Kurangi stok untuk detail BARU/YANG DIUPDATE
                 foreach ($validated['items'] as $item) {
                     if (!isset($produkChanges[$item['id_produk']])) {
                         $produkChanges[$item['id_produk']] = 0;
                     }
                     $produkChanges[$item['id_produk']] -= $item['jumlah'];
                 }
-
-                // Validasi apakah stok cukup
                 foreach ($produkChanges as $produkId => $change) {
                     $produk = Produk::findOrFail($produkId);
-                    if ($produk->jumlah_stok + $change < 0) {
-                        throw new \Exception("Stok produk {$produk->nama_produk} tidak mencukupi untuk perubahan ini.");
+                    $stokAkhirPotensial = $produk->jumlah_stok + $change;
+                    if ($stokAkhirPotensial < 0) {
+                        throw new \Exception("Stok produk {$produk->nama_produk} tidak mencukupi untuk perubahan ini. Stok tersedia: {$produk->jumlah_stok}, Perubahan: {$change}");
                     }
                 }
-
-                // Proses update atau buat detail transaksi
                 $existingDetailIds = $transaksi->detailtransaksis->pluck('id')->toArray();
                 $newDetailIds = [];
-
                 foreach ($validated['items'] as $item) {
                     $produk = Produk::findOrFail($item['id_produk']);
                     $hargaSatuan = $produk->harga_jual;
                     $totalHarga = $item['jumlah'] * $hargaSatuan;
-
                     if (isset($item['id_detail_transaksi']) && $item['id_detail_transaksi'] !== null) {
-                        Log::info('Mencoba memperbarui detail transaksi yang ada.', [
-                            'detail_id_dari_frontend' => $item['id_detail_transaksi'],
-                            'id_transaksi_saat_ini' => $transaksiIdFromRoute, // Gunakan variabel ini
-                            'produk_id' => $item['id_produk'],
-                            'jumlah' => $item['jumlah']
-                        ]);
-
                         $detail = DetailTransaksi::where('id', $item['id_detail_transaksi'])
-                            ->where('id_transaksi', $transaksiIdFromRoute) // Gunakan variabel ini
+                            ->where('id_transaksi', $transaksiIdFromRoute)
                             ->first();
-
                         if ($detail) {
                             $detail->update([
                                 'id_produk' => $item['id_produk'],
@@ -286,13 +269,13 @@ class TransaksiController extends Controller
                             ]);
                             $newDetailIds[] = $detail->id;
                         } else {
-                            Log::warning('DetailTransaksi ID tidak ditemukan untuk update (mungkin dihapus manual atau ID salah). Membuat item baru.', [
+                            Log::warning('DetailTransaksi ID tidak ditemukan untuk update. Membuat item baru.', [
                                 'missing_detail_id' => $item['id_detail_transaksi'],
-                                'transaksi_id_context' => $transaksiIdFromRoute, // Gunakan variabel ini
+                                'transaksi_id_context' => $transaksiIdFromRoute,
                                 'item_data' => $item
                             ]);
                             $newDetail = DetailTransaksi::create([
-                                'id_transaksi' => $transaksiIdFromRoute, // Gunakan variabel ini
+                                'id_transaksi' => $transaksiIdFromRoute,
                                 'id_produk' => $item['id_produk'],
                                 'jumlah' => $item['jumlah'],
                                 'harga_satuan' => $hargaSatuan,
@@ -302,12 +285,12 @@ class TransaksiController extends Controller
                         }
                     } else {
                         Log::info('Mencoba membuat detail transaksi baru.', [
-                            'id_transaksi_untuk_new_detail' => $transaksiIdFromRoute, // Gunakan variabel ini
+                            'id_transaksi_untuk_new_detail' => $transaksiIdFromRoute,
                             'produk_id' => $item['id_produk'],
                             'jumlah' => $item['jumlah']
                         ]);
                         $detail = DetailTransaksi::create([
-                            'id_transaksi' => $transaksiIdFromRoute, // Gunakan variabel ini
+                            'id_transaksi' => $transaksiIdFromRoute,
                             'id_produk' => $item['id_produk'],
                             'jumlah' => $item['jumlah'],
                             'harga_satuan' => $hargaSatuan,
@@ -316,15 +299,11 @@ class TransaksiController extends Controller
                         $newDetailIds[] = $detail->id;
                     }
                 }
-
-                // Hapus detail transaksi yang tidak lagi ada di payload baru
                 $detailsToDelete = array_diff($existingDetailIds, $newDetailIds);
                 if (!empty($detailsToDelete)) {
                     Log::info('Menghapus detail transaksi lama yang tidak lagi relevan.', ['ids_to_delete' => $detailsToDelete]);
                     DetailTransaksi::whereIn('id', $detailsToDelete)->delete();
                 }
-
-                // Update stok produk di database
                 foreach ($produkChanges as $produkId => $change) {
                     if ($change > 0) {
                         Produk::where('id', $produkId)->increment('jumlah_stok', $change);
@@ -332,21 +311,25 @@ class TransaksiController extends Controller
                         Produk::where('id', $produkId)->decrement('jumlah_stok', abs($change));
                     }
                 }
-
-                // Refresh model transaksi dan load relasi untuk respons
                 $transaksi->refresh()->load(['pelanggan', 'user', 'detailtransaksis.produk']);
-
                 Log::info('Update transaksi berhasil ID: ' . ($transaksi->id ?? 'NULL'), [
                     'final_transaksi_data' => $transaksi->toArray(),
                     'final_detail_transaksi_data' => $transaksi->detailtransaksis->toArray()
                 ]);
-
-                // Kembalikan respons sukses
                 return response()->json([
                     'message' => 'Transaksi berhasil diperbarui',
                     'data' => $transaksi
                 ], 200);
             });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error update transaksi: ' . $e->getMessage(), [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Error update transaksi: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -361,35 +344,25 @@ class TransaksiController extends Controller
     }
 
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
+
+
     public function destroy($id)
     {
         try {
-            // Jalankan operasi dalam sebuah transaksi database
             return DB::transaction(function () use ($id) {
-                // Temukan transaksi beserta detailnya
                 $transaksi = Transaksi::with('detailtransaksis')->findOrFail($id);
-
-                // Kembalikan stok produk yang terkait dengan transaksi ini
                 foreach ($transaksi->detailtransaksis as $detail) {
                     Produk::where('id', $detail->id_produk)
                         ->increment('jumlah_stok', $detail->jumlah);
                 }
-
-                // Hapus semua detail transaksi
                 $transaksi->detailtransaksis()->delete();
-                // Hapus transaksi utama
                 $transaksi->delete();
-
-                // Kembalikan respons sukses
                 return response()->json([
                     'message' => 'Transaksi berhasil dihapus'
                 ], 200);
             });
         } catch (\Exception $e) {
-            // Log error jika terjadi exception
             Log::error('Delete error: ' . $e->getMessage(), ['trace' => $e->getTraceAsString(), 'transaksi_id' => $id]);
             return response()->json([
                 'message' => 'Gagal menghapus transaksi',
@@ -410,27 +383,17 @@ class TransaksiController extends Controller
                 ->whereYear('created_at', $year)
                 ->groupBy('month')
                 ->orderBy('month')
-                ->get(); // Hapus ->keyBy('month')->toArray() sementara untuk debugging
-
-            // dd($monthlyRevenue); // Debug 1: Lihat hasil query mentah
-
+                ->get();
             $fullYearRevenue = [];
             for ($i = 1; $i <= 12; $i++) {
                 $monthName = Carbon::create(null, $i, 1)->translatedFormat('M');
-
-                // Debug 2: Temukan entri untuk bulan saat ini
                 $currentMonthData = $monthlyRevenue->where('month', $i)->first();
-
-                // dd($currentMonthData); // Debug 3: Lihat data per bulan
-
                 $amount = 0;
                 $rawAmount = 0;
-
                 if ($currentMonthData) {
                     $rawAmount = $currentMonthData->total_revenue;
                     $amount = round($rawAmount / 1000000, 2);
                 }
-
                 $fullYearRevenue[] = [
                     'month_num' => $i,
                     'month' => $monthName,
@@ -438,9 +401,6 @@ class TransaksiController extends Controller
                     'raw_amount' => $rawAmount,
                 ];
             }
-
-            // dd($fullYearRevenue); // Debug 4: Lihat hasil akhir sebelum return
-
             return response()->json([
                 'message' => 'Monthly revenue data fetched successfully',
                 'data' => $fullYearRevenue
@@ -450,7 +410,6 @@ class TransaksiController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->all()
             ]);
-            // dd($e->getMessage(), $e->getTraceAsString()); // Debug 5: Akan menampilkan error di browser
             return response()->json([
                 'message' => 'Failed to fetch monthly revenue',
                 'error' => env('APP_DEBUG') ? $e->getMessage() : null
@@ -461,20 +420,16 @@ class TransaksiController extends Controller
     public function getAnnualRevenue(Request $request)
     {
         try {
-            $startYear = $request->input('start_year', Carbon::now()->subYears(4)->year); // Default 5 tahun terakhir
+            $startYear = $request->input('start_year', Carbon::now()->subYears(4)->year);
             $endYear = $request->input('end_year', Carbon::now()->year);
-
-            // Fetch annual revenue from database
             $annualRevenue = Transaksi::select(
                 DB::raw('YEAR(created_at) as year'),
                 DB::raw('SUM(total_bayar) as total_revenue')
             )
-            ->whereBetween(DB::raw('YEAR(created_at)'), [$startYear, $endYear])
-            ->groupBy('year')
-            ->orderBy('year')
-            ->get();
-
-            // Prepare data to ensure all years in the range are present, fill missing with 0
+                ->whereBetween(DB::raw('YEAR(created_at)'), [$startYear, $endYear])
+                ->groupBy('year')
+                ->orderBy('year')
+                ->get();
             $fullAnnualRevenue = [];
             for ($year = $startYear; $year <= $endYear; $year++) {
                 $existingData = $annualRevenue->where('year', $year)->first();
@@ -497,7 +452,6 @@ class TransaksiController extends Controller
                 'message' => 'Annual revenue data fetched successfully',
                 'data' => $fullAnnualRevenue
             ], 200);
-
         } catch (\Exception $e) {
             Log::error('Error fetching annual revenue: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -510,26 +464,23 @@ class TransaksiController extends Controller
         }
     }
 
-   public function getTransactionStatus(Request $request)
+    public function getTransactionStatus(Request $request)
     {
         try {
             $year = $request->input('year', Carbon::now()->year);
 
             $transactionStatus = Transaksi::select(
-                // PERBAIKAN DI SINI: Ganti 'metode_pembayaran' menjadi 'status_pembayaran'
-                'status_pembayaran as name',
+                // PERBAIKAN DI SINI: Ganti 'metode_pembayaran' menjadi 'metode_pembayaran'
+                'metode_pembayaran as name',
                 DB::raw('COUNT(*) as total_transactions')
             )
-            ->whereNotNull('status_pembayaran') // PERBAIKAN DI SINI
-            ->whereYear('created_at', $year)
-            ->groupBy('status_pembayaran') // PERBAIKAN DI SINI
-            ->orderBy('name')
-            ->get();
-
-            // Opsional: Anda bisa memetakan "Cash" dan "Kredit" ke warna
+                ->whereNotNull('metode_pembayaran') // PERBAIKAN DI SINI
+                ->whereYear('created_at', $year)
+                ->groupBy('metode_pembayaran') // PERBAIKAN DI SINI
+                ->orderBy('name')
+                ->get();
             $mappedStatus = $transactionStatus->map(function ($item) {
-                $color = 'gray'; // Default color
-                // Pastikan nilai 'cash' dan 'kredit' sesuai dengan data di DB Anda (case-insensitive)
+                $color = 'gray';
                 if (strtolower($item->name) === 'cash') {
                     $color = 'green';
                 } elseif (strtolower($item->name) === 'kredit') {
@@ -546,7 +497,6 @@ class TransaksiController extends Controller
                 'message' => 'Transaction status fetched successfully',
                 'data' => $mappedStatus
             ], 200);
-
         } catch (\Exception $e) {
             Log::error('Error fetching transaction status: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
@@ -558,7 +508,282 @@ class TransaksiController extends Controller
             ], 500);
         }
     }
+
+
+    public function getSalesByCategory(Request $request)
+    {
+        try {
+            // Ambil tahun dari request, default ke tahun saat ini
+            $year = $request->input('year', Carbon::now()->year);
+
+            // Query untuk mendapatkan total penjualan per kategori
+            $salesByCategory = DB::table('detailtransaksis as dt')
+                ->select(
+                    'k.nama_kategori as category_name',
+                    DB::raw('SUM(dt.total_harga) as total_sales')
+                )
+                ->join('produks as p', 'dt.id_produk', '=', 'p.id')
+                ->join('kategoris as k', 'p.id_kategori', '=', 'k.id')
+                ->join('transaksis as t', 'dt.id_transaksi', '=', 't.id')
+                ->whereYear('t.created_at', $year) // Filter berdasarkan tahun transaksi
+                ->groupBy('k.nama_kategori')
+                ->orderBy('total_sales', 'desc')
+                ->get();
+
+            // Ambil semua nama kategori yang ada untuk memastikan semua kategori tampil, meskipun tidak ada penjualan
+            $allCategories = Kategori::pluck('nama_kategori')->toArray();
+
+            // Inisialisasi data penjualan dengan semua kategori dan total sales 0
+            $formattedSales = array_fill_keys($allCategories, 0);
+
+            // Isi data penjualan dengan hasil query
+            foreach ($salesByCategory as $sale) {
+                $formattedSales[$sale->category_name] = round(floatval($sale->total_sales), 2);
+            }
+
+            // Ubah format menjadi array of objects untuk kompatibilitas grafik (opsional, tergantung frontend)
+            $chartData = [];
+            foreach ($formattedSales as $category => $sales) {
+                $chartData[] = [
+                    'name' => $category,
+                    'value' => $sales,
+                    // Anda bisa menambahkan warna di sini jika diperlukan, contoh:
+                    // 'color' => '#'.substr(md5($category), 0, 6) // Warna random berdasarkan nama kategori
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data penjualan berdasarkan kategori berhasil diambil',
+                'data' => $chartData
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching sales by category: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data penjualan berdasarkan kategori',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+
+    public function getQuickSummary(Request $request)
+    {
+        try {
+            $currentYear = Carbon::now()->year;
+            $currentMonth = Carbon::now()->month;
+
+            // Hitung Total Penjualan Tahun Ini
+            $totalSalesThisYear = Transaksi::whereYear('created_at', $currentYear)
+                ->sum('total_bayar');
+
+            // Hitung Total Transaksi Bulan Ini
+            $totalTransactionsThisMonth = Transaksi::whereYear('created_at', $currentYear)
+                ->whereMonth('created_at', $currentMonth)
+                ->count();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Quick summary data fetched successfully',
+                'data' => [
+                    'total_sales_this_year' => (float) $totalSalesThisYear,
+                    'total_transactions_this_month' => (int) $totalTransactionsThisMonth,
+                    'year' => $currentYear,
+                    'month' => Carbon::now()->translatedFormat('F'), // Nama bulan
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching quick summary: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch quick summary data',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+
+
+    public function getSalesReport(Request $request)
+    {
+        try {
+            // Validasi input
+            $validator = Validator::make($request->all(), [
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'category_id' => 'nullable|exists:kategoris,id',
+                'product_id' => 'nullable|exists:produks,id',
+                'group_by' => 'nullable|in:day,month,year,category,product', // Cara pengelompokan
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid input data',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            $categoryId = $request->input('category_id');
+            $productId = $request->input('product_id');
+            $groupBy = $request->input('group_by', 'day'); // Default group by day
+
+            // Query dasar untuk mengambil detail transaksi
+            $query = DetailTransaksi::select(
+                DB::raw('SUM(detail_transaksis.total_harga) as total_sales'),
+                DB::raw('COUNT(DISTINCT transaksis.id) as total_transactions')
+            )
+                ->join('transaksis', 'detail_transaksis.id_transaksi', '=', 'transaksis.id')
+                ->join('produks', 'detail_transaksis.id_produk', '=', 'produks.id')
+                ->join('kategoris', 'produks.id_kategori', '=', 'kategoris.id');
+
+            // Apply date filters
+            if ($startDate) {
+                $query->whereDate('transaksis.created_at', '>=', $startDate);
+            }
+            if ($endDate) {
+                $query->whereDate('transaksis.created_at', '<=', $endDate);
+            }
+
+            // Apply category filter
+            if ($categoryId) {
+                $query->where('kategoris.id', $categoryId);
+            }
+
+            // Apply product filter
+            if ($productId) {
+                $query->where('produks.id', $productId);
+            }
+
+            // Grouping logic
+            switch ($groupBy) {
+                case 'day':
+                    $query->addSelect(DB::raw('DATE(transaksis.created_at) as period_date'))
+                        ->groupBy(DB::raw('DATE(transaksis.created_at)'))
+                        ->orderBy('period_date', 'asc');
+                    break;
+                case 'month':
+                    $query->addSelect(DB::raw('DATE_FORMAT(transaksis.created_at, "%Y-%m") as period_date'))
+                        ->groupBy(DB::raw('DATE_FORMAT(transaksis.created_at, "%Y-%m")'))
+                        ->orderBy('period_date', 'asc');
+                    break;
+                case 'year':
+                    $query->addSelect(DB::raw('YEAR(transaksis.created_at) as period_date'))
+                        ->groupBy(DB::raw('YEAR(transaksis.created_at)'))
+                        ->orderBy('period_date', 'asc');
+                    break;
+                case 'category':
+                    $query->addSelect('kategoris.nama_kategori as group_name')
+                        ->groupBy('kategoris.nama_kategori')
+                        ->orderBy('total_sales', 'desc');
+                    break;
+                case 'product':
+                    $query->addSelect('produks.nama_produk as group_name')
+                        ->groupBy('produks.nama_produk')
+                        ->orderBy('total_sales', 'desc');
+                    break;
+                default:
+                    // Default to day if no valid group_by is provided
+                    $query->addSelect(DB::raw('DATE(transaksis.created_at) as period_date'))
+                        ->groupBy(DB::raw('DATE(transaksis.created_at)'))
+                        ->orderBy('period_date', 'asc');
+                    break;
+            }
+
+            $reportData = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Sales report fetched successfully',
+                'data' => $reportData
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching sales report: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch sales report data',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    public function exportSalesPdf(Request $request)
+    {
+        try {
+            // Re-use the filtering logic from getSalesReport or build a new one
+            $query = Transaksi::with(['pelanggan', 'user']) // Load relations
+                ->orderBy('created_at', 'asc');
+
+            // Apply filters from request
+            if ($request->has('search') && $request->input('search')) {
+                $searchTerm = $request->input('search');
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('id', 'like', '%' . $searchTerm . '%')
+                        ->orWhereHas('pelanggan', function ($q) use ($searchTerm) {
+                            $q->where('nama_pelanggan', 'like', '%' . $searchTerm . '%')
+                                ->orWhere('nama_toko', 'like', '%' . $searchTerm . '%');
+                        })
+                        ->orWhereHas('user', function ($q) use ($searchTerm) {
+                            $q->where('name', 'like', '%' . $searchTerm . '%');
+                        });
+                });
+            }
+
+            if ($request->has('status') && $request->input('status') !== 'all') {
+                $query->where('metode_pembayaran', $request->input('status'));
+            }
+
+            if ($request->has('start_date') && $request->input('start_date')) {
+                $query->whereDate('created_at', '>=', $request->input('start_date'));
+            }
+            if ($request->has('end_date') && $request->input('end_date')) {
+                $query->whereDate('created_at', '<=', $request->input('end_date'));
+            }
+
+            $transactions = $query->get();
+
+            // Prepare filter info for the PDF
+            $filters = [
+                'start_date' => $request->input('start_date'),
+                'end_date' => $request->input('end_date'),
+                'status' => $request->input('status', 'all'),
+                'search' => $request->input('search'),
+            ];
+
+            // Load view with data
+            $pdf = Pdf::loadView('reports.sales_pdf', [
+                'transactions' => $transactions,
+                'filters' => $filters,
+            ]);
+
+            // Set paper size and orientation if needed
+            $pdf->setPaper('a4', 'landscape'); // portrait or landscape
+
+            // Download the PDF
+            return $pdf->download('laporan-penjualan-' . Carbon::now()->format('YmdHis') . '.pdf');
+        } catch (\Exception $e) {
+            Log::error('Error exporting sales PDF: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+            // Return a simple response or redirect with error
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate PDF report',
+                'error' => env('APP_DEBUG') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
 }
-
-
-

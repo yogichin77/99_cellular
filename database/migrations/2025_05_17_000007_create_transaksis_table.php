@@ -16,7 +16,7 @@ return new class extends Migration
             $table->decimal('sub_total', 12, 2);
             $table->decimal('total_bayar', 12, 2);
             $table->decimal('total_kurang', 12, 2);
-            $table->enum('status_pembayaran', ['cash', 'kredit']);
+            $table->enum('metode_pembayaran', ['Cash', 'Kredit']);
             $table->date('jatuh_tempo')->nullable();
             $table->decimal('diskon', 12, 2);
             $table->foreignId('id_pelanggan')->nullable()->constrained('pelanggans')->onDelete('cascade')->change();

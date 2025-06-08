@@ -39,7 +39,7 @@ const currentYear = new Date().getFullYear(); // Ambil tahun saat ini
 const fetchAnnualRevenue = async () => {
     isLoadingAnnualRevenue.value = true;
     try {
-        const response = await axios.get(`/api/transaksi/annual-revenue`, {
+        const response = await axios.get(`api/dashboard/annual-revenue`, {
             params: {
                 start_year: currentYear - 4, // Misalnya, 5 tahun terakhir termasuk tahun ini
                 end_year: currentYear

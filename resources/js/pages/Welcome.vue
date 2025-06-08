@@ -49,7 +49,7 @@ const page = usePage<PageProps>()
             class="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800 transition">
           Register
           </Link>
-          <Link :href="route('Pramuniaga')"
+          <Link :href="route('lihatproduk')"
             class="rounded-md border border-gray-300 px-4 py-2 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-800 transition">
           Lihat Produk
           </Link>

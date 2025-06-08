@@ -91,7 +91,7 @@ const fetchpelanggan = async () => {
     try {
         isLoading.value = true;
         if (isOnline.value) {
-            const response = await axios.get('/api/pelanggan');
+            const response = await axios.get('api/pelanggan');
             pelanggan.value = response.data.data;
             // Bersihkan IndexedDB dan simpan data terbaru dari server
             await clearOfflinePelanggans();
@@ -125,7 +125,7 @@ const syncOfflineQueue = async () => {
         const operation = offlineQueue.value[i];
         try {
             if (operation.type === 'create') {
-                const response = await axios.post('/api/pelanggan', operation.data);
+                const response = await axios.post('api/pelanggan', operation.data);
                 showSuccess(`Pelanggan "${operation.data.nama_pelanggan}" berhasil ditambahkan (disinkronkan).`);
                 // Perbarui ID di IndexedDB untuk entri offline yang baru dibuat
                 if (operation.offlineId) {
@@ -136,12 +136,12 @@ const syncOfflineQueue = async () => {
                     console.log(`Updated offline entry ID from ${operation.offlineId} to ${response.data.data.id}`);
                 }
             } else if (operation.type === 'update') {
-                await axios.put(`/api/pelanggan/${operation.id}`, operation.data);
+                await axios.put(`api/pelanggan/${operation.id}`, operation.data);
                 showSuccess(`Pelanggan "${operation.data.nama_pelanggan}" berhasil diperbarui (disinkronkan).`);
                 // Setelah update di server, update juga di IndexedDB untuk memastikan konsistensi
                 await saveOfflinePelanggans({ ...operation.data, id: operation.id });
             } else if (operation.type === 'delete') {
-                await axios.delete(`/api/pelanggan/${operation.id}`);
+                await axios.delete(`pelanggan/${operation.id}`);
                 showSuccess(`Pelanggan (ID: ${operation.id}) berhasil dihapus (disinkronkan).`);
                 // Hapus juga dari IndexedDB
                 await deleteOfflinePelanggan(operation.id);
@@ -173,7 +173,7 @@ const submitForm = async () => {
         if (editingId.value) {
             // Operasi UPDATE
             if (isOnline.value) {
-                await axios.put(`/api/pelanggan/${editingId.value}`, dataToSave);
+                await axios.put(`api/pelanggan/${editingId.value}`, dataToSave);
                 showSuccess('Pelanggan berhasil diperbarui');
             } else {
                 // Tambahkan ke queue jika offline
@@ -186,7 +186,7 @@ const submitForm = async () => {
         } else {
             // Operasi CREATE
             if (isOnline.value) {
-                const response = await axios.post('/api/pelanggan', dataToSave);
+                const response = await axios.post('api/pelanggan', dataToSave);
                 showSuccess('Pelanggan berhasil ditambahkan');
                 // Data pelanggan akan di-fetch ulang dari server, jadi tidak perlu update pelanggan.value secara manual di sini
             } else {
@@ -247,7 +247,7 @@ const deletepelanggan = async (id: number) => {
     if (result.isConfirmed) {
         try {
             if (isOnline.value) {
-                await axios.delete(`/api/pelanggan/${id}`);
+                await axios.delete(`api/pelanggan/${id}`);
                 showSuccess('Pelanggan berhasil dihapus');
                 // Hapus dari IndexedDB
                 await deleteOfflinePelanggan(id);
@@ -374,7 +374,7 @@ onMounted(async () => {
                 <CardContent>
                     <div class="rounded-md border -mt-px"> <div class="hidden md:block max-h-[500px] overflow-y-auto">
                             <Table>
-                                <TableHeader class="sticky top-0 bg-white z-10">
+                                <TableHeader class="sticky top-0  z-10">
                                     <TableRow>
                                         <TableHead>Nama Pelanggan</TableHead>
                                         <TableHead>No. HP</TableHead>

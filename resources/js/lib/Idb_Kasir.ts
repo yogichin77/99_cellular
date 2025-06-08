@@ -78,7 +78,7 @@ interface OfflineTransaksiPayload {
     sub_total: number;
     diskon: number;
     total_bayar: number;
-    status_pembayaran: 'cash' | 'kredit';
+    metode_pembayaran: 'cash' | 'kredit';
     jatuh_tempo?: string | null;
     id_pelanggan: number | null;
     id_user: number;

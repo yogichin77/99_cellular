@@ -65,7 +65,7 @@ const fetchTransactionStatus = async () => {
     isLoadingStatus.value = true;
     try {
         const currentYear = new Date().getFullYear();
-        const response = await axios.get(`/api/transaksi/status`, {
+        const response = await axios.get(`api/dashboard/status`, {
             params: {
                 year: currentYear
             }

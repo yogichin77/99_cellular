@@ -2,8 +2,8 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { Check, Image as ImageIcon, Pencil, PlusCircle, Search, Trash2, X } from 'lucide-vue-next';
+import axios, { all } from 'axios';
+import { Check, Image as ImageIcon, Pencil, PlusCircle, Search, Trash2, X, FileText } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import { computed, onMounted, ref } from 'vue';
 
@@ -11,7 +11,6 @@ import { computed, onMounted, ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-// Import Dialog components
 import {
   Dialog,
   DialogContent,
@@ -36,10 +35,12 @@ const kategoris = ref<{ id: number, nama_kategori: string }[]>([]);
 const mereks = ref<{ id: number, nama_merek: string }[]>([]);
 const editingId = ref<number | null>(null);
 const searchTerm = ref('');
+const minStok = ref<number | null>(null); // State baru untuk filter min stok
+const maxStok = ref<number | null>(null); // State baru untuk filter max stok
 const isLoading = ref(false);
 const isSubmitting = ref(false);
 const isDragging = ref(false);
-const isDialogOpen = ref(false); // State untuk mengontrol dialog
+const isDialogOpen = ref(false);
 
 // Form state
 const form = ref({
@@ -55,14 +56,13 @@ const form = ref({
   barcode: '',
 });
 
-// Fetch all data
 const fetchproduk = async () => {
   try {
     isLoading.value = true;
     const [produkRes, kategoriRes, merekRes] = await Promise.all([
-      axios.get('/api/produk'),
-      axios.get('/api/kategori'),
-      axios.get('/api/merek')
+      axios.get('api/produk'),
+      axios.get('api/kategori'),
+      axios.get('api/merek')
     ]);
 
     produk.value = produkRes.data.data;
@@ -76,7 +76,6 @@ const fetchproduk = async () => {
   }
 };
 
-// Drag and drop handlers
 const handleDragOver = (e: DragEvent) => {
   e.preventDefault();
   isDragging.value = true;
@@ -97,14 +96,12 @@ const handleDrop = (e: DragEvent) => {
   }
 };
 
-// File upload handler
 const handleFileUpload = (event: Event) => {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
   if (file && file.type.startsWith('image/')) {
     form.value.gambar_produk = file;
 
-    // Create preview
     const reader = new FileReader();
     reader.onload = (e) => {
       form.value.previewImage = e.target?.result as string;
@@ -113,20 +110,23 @@ const handleFileUpload = (event: Event) => {
   }
 };
 
-// Filter produk dan batasi 20 item
+// Filter produk berdasarkan searchTerm dan min/max stok
 const displayedProduk = computed(() => {
   const lowerCaseSearchTerm = searchTerm.value.toLowerCase();
 
-  const filtered = produk.value.filter(item =>
-    item.nama_produk.toLowerCase().includes(lowerCaseSearchTerm) ||
-    (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) ||
-    (item.deskripsi_produk && item.deskripsi_produk.toLowerCase().includes(lowerCaseSearchTerm))
-  );
+  return produk.value.filter(item => {
+    const matchesSearch =
+      item.nama_produk.toLowerCase().includes(lowerCaseSearchTerm) ||
+      (item.barcode && item.barcode.toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (item.deskripsi_produk && item.deskripsi_produk.toLowerCase().includes(lowerCaseSearchTerm));
 
-  return filtered.slice(0, 20); // Batasi hingga 20 item
+    const matchesMinStok = minStok.value === null || item.jumlah_stok >= minStok.value;
+    const matchesMaxStok = maxStok.value === null || item.jumlah_stok <= maxStok.value;
+
+    return matchesSearch && matchesMinStok && matchesMaxStok;
+  }).slice();
 });
 
-// Format currency
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -135,7 +135,6 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Submit form
 const submitForm = async () => {
   try {
     isSubmitting.value = true;
@@ -151,15 +150,19 @@ const submitForm = async () => {
 
     if (form.value.gambar_produk instanceof File) {
       formData.append('gambar_produk', form.value.gambar_produk);
+    } else if (typeof form.value.gambar_produk === 'string' && form.value.gambar_produk !== '') {
+      // Jika berupa string (path gambar lama), tidak perlu di-append ke formData
     }
 
+
     if (editingId.value) {
-      await axios.post(`/api/produk/${editingId.value}?_method=PUT`, formData, {
+      formData.append('_method', 'PUT');
+      await axios.post(`api/produk/${editingId.value}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       showSuccess('Produk berhasil diperbarui');
     } else {
-      await axios.post('/api/produk', formData, {
+      await axios.post('api/produk', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       showSuccess('Produk berhasil ditambahkan');
@@ -167,7 +170,7 @@ const submitForm = async () => {
 
     resetForm();
     await fetchproduk();
-    isDialogOpen.value = false; // Tutup dialog setelah submit
+    isDialogOpen.value = false;
   } catch (error) {
     handleError(error);
   } finally {
@@ -175,7 +178,6 @@ const submitForm = async () => {
   }
 };
 
-// Edit produk
 const editProduk = (item: any) => {
   form.value = {
     nama_produk: item.nama_produk,
@@ -190,10 +192,9 @@ const editProduk = (item: any) => {
     barcode: item.barcode || '',
   };
   editingId.value = item.id;
-  isDialogOpen.value = true; // Buka dialog saat edit
+  isDialogOpen.value = true;
 };
 
-// Delete produk
 const deleteProduk = async (id: number) => {
   const result = await Swal.fire({
     title: 'Yakin menghapus produk?',
@@ -208,7 +209,7 @@ const deleteProduk = async (id: number) => {
 
   if (result.isConfirmed) {
     try {
-      await axios.delete(`/api/produk/${id}`);
+      await axios.delete(`api/produk/${id}`);
       await fetchproduk();
       showSuccess('Produk berhasil dihapus');
     } catch (error) {
@@ -217,7 +218,6 @@ const deleteProduk = async (id: number) => {
   }
 };
 
-// Reset form
 const resetForm = () => {
   form.value = {
     nama_produk: '',
@@ -232,27 +232,32 @@ const resetForm = () => {
     barcode: '',
   };
   editingId.value = null;
-  // isDialogOpen.value = false; // Optionally close dialog on reset if not used for 'Cancel'
 };
 
-// Handle error
 const handleError = (error: any) => {
   console.error('Error:', error);
   let errorMessage = 'Gagal menyimpan produk';
 
-  if (error.response?.data?.errors) {
-    errorMessage = Object.entries(error.response.data.errors)
-      .map(([field, messages]) => {
-        const fieldName = field.replace(/_/g, ' ');
-        return `<b>${fieldName}</b>: ${(messages as string[]).join(', ')}`;
-      })
-      .join('<br>');
+  if (axios.isAxiosError(error) && error.response) {
+    if (error.response.status === 422) {
+      errorMessage = Object.entries(error.response.data.errors)
+        .map(([field, messages]) => {
+          const fieldName = field.replace(/_/g, ' ');
+          return `<b>${fieldName}</b>: ${(messages as string[]).join(', ')}`;
+        })
+        .join('<br>');
+    } else if (error.response.status === 405) {
+      errorMessage = 'Metode HTTP tidak diizinkan. Periksa rute API Anda untuk operasi update/create.';
+    } else {
+      errorMessage = `Gagal menyimpan produk: ${error.response.data.message || 'Terjadi kesalahan tidak dikenal.'}`;
+    }
+  } else {
+    errorMessage = 'Gagal menyimpan produk: Terjadi kesalahan jaringan atau tidak terduga.';
   }
 
   showError(errorMessage);
 };
 
-// Show notifications
 const showSuccess = (message: string) => {
   Swal.fire({
     title: 'Berhasil!',
@@ -279,9 +284,44 @@ const truncateText = (text: string | null | undefined, maxLength: number) => {
   }
   return text || '';
 };
+
+const exportStockPdf = async () => {
+  try {
+    Swal.fire({
+      title: 'Membuat Laporan...',
+      text: 'Mohon tunggu sebentar',
+      didOpen: () => {
+        Swal.showLoading();
+      },
+      allowOutsideClick: false,
+      allowEscapeKey: false
+    });
+
+    const params: Record<string, string> = {};
+
+    if (searchTerm.value) {
+      params.search = searchTerm.value;
+    }
+    if (minStok.value !== null) { // Kirim hanya jika ada nilai
+      params.min_stok = String(minStok.value);
+    }
+    if (maxStok.value !== null) { // Kirim hanya jika ada nilai
+      params.max_stok = String(maxStok.value);
+    }
+
+    const queryString = new URLSearchParams(params).toString();
+    window.location.href = `api/reports/produk/export-stock-pdf?${queryString}`;
+
+    Swal.close();
+  } catch (error) {
+    console.error('Error exporting stock PDF:', error);
+    showError('Gagal membuat laporan stok produk.');
+  }
+};
 </script>
 
 <template>
+
   <Head title="Produk" />
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full mx-auto py-6 px-4 sm:px-6 lg:px-8">
@@ -289,20 +329,40 @@ const truncateText = (text: string | null | undefined, maxLength: number) => {
         <CardHeader>
           <CardTitle class="flex items-center gap-2">
             <Search class="w-5 h-5" />
-            Cari Produk
+            Filter Produk
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div class="relative max-w-md">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search class="h-5 w-5 text-muted-foreground" />
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label for="searchTerm" class="mb-2">Cari Produk</Label>
+              <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search class="h-5 w-5 text-muted-foreground" />
+                </div>
+                <Input v-model.trim="searchTerm" id="searchTerm" type="search" placeholder="Nama, barcode, deskripsi..."
+                  class="pl-10" />
+              </div>
             </div>
-            <Input v-model.trim="searchTerm" type="search" placeholder="Cari produk..." class="pl-10" />
+            <div>
+              <Label for="minStok" class="mb-2">Stok Minimal</Label>
+              <Input v-model.number="minStok" id="minStok" type="number" min="0" placeholder="Min. stok" />
+            </div>
+            <div>
+              <Label for="maxStok" class="mb-2">Stok Maksimal</Label>
+              <Input v-model.number="maxStok" id="maxStok" type="number" min="0" placeholder="Max. stok" />
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <div class="mb-4 text-right">
+
+      <div class="mb-4 text-right flex justify-end gap-2">
+        <Button @click="exportStockPdf()" variant="outline">
+          <FileText class="w-4 h-4 mr-2" />
+          Export Laporan Stok PDF
+        </Button>
+
         <Dialog :open="isDialogOpen" @update:open="isDialogOpen = $event">
           <DialogTrigger as-child>
             <Button @click="resetForm(); isDialogOpen = true;">
@@ -440,13 +500,15 @@ const truncateText = (text: string | null | undefined, maxLength: number) => {
           <CardTitle class="flex items-center gap-2">
             Daftar Produk
             <Badge variant="outline" class="px-2 py-1">
-              {{ produk.length }} item
+              {{ displayedProduk.length }} item
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div class="rounded-md border relative overflow-x-auto" style="max-height: 70vh;"> <Table class="min-w-full">
-              <TableHeader class="sticky top-0 bg-background z-10"> <TableRow>
+          <div class="rounded-md border relative overflow-x-auto" style="max-height: 70vh;">
+            <Table class="min-w-full">
+              <TableHeader class="sticky top-0 bg-background z-10">
+                <TableRow>
                   <TableHead class="w-[100px]">Gambar</TableHead>
                   <TableHead>Barcode</TableHead>
                   <TableHead>Produk</TableHead>
@@ -609,12 +671,15 @@ const truncateText = (text: string | null | undefined, maxLength: number) => {
 }
 
 .rounded-md.border .sticky {
-  background-color: var(--background); /* Ensure it matches your theme's background */
+  background-color: var(--background);
+  /* Ensure it matches your theme's background */
 }
 
 /* Override default table cell padding for sticky header if needed */
 .sticky th {
-  padding-top: 0.75rem; /* Equivalent to py-3 */
-  padding-bottom: 0.75rem; /* Equivalent to py-3 */
+  padding-top: 0.75rem;
+  /* Equivalent to py-3 */
+  padding-bottom: 0.75rem;
+  /* Equivalent to py-3 */
 }
 </style>

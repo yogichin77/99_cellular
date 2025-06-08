@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers;
 
+use Inertia\Inertia;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -13,7 +14,11 @@ class UserController extends Controller
     public function index()
     {
         $users = User::all();
-        return response()->json(['data' => $users], 200);
+        return response()->json([
+            'success' => true,
+            'message' => 'Data Merek berhasil diambil',
+            'data' => $users
+        ]);
     }
 
     public function store(Request $request)
